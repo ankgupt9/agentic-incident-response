@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: incident-response
+    folder: Incident Response
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

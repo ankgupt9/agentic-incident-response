@@ -1,0 +1,52 @@
+{
+  "uid": "order-flow",
+  "title": "Order Flow",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Order submissions / s (by status)",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (status) (rate(orders_submitted_total[1m]))", "legendFormat": "{{status}}" }]
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Error ratio (submit vs pricing consumer)",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(orders_submitted_total{status=\"error\"}[1m])) / sum(rate(orders_submitted_total[1m]))", "legendFormat": "submit" },
+        { "refId": "B", "expr": "sum(rate(orders_priced_total{status=\"error\"}[1m])) / sum(rate(orders_priced_total[1m]))", "legendFormat": "pricing consumer" }
+      ]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "POST /orders latency (p50 / p95)",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(order_submit_duration_milliseconds_bucket[1m])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(order_submit_duration_milliseconds_bucket[1m])))", "legendFormat": "p95" }
+      ]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Queue depth (RabbitMQ)",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "rabbitmq_queue_messages_ready{queue=\"orders\"}", "legendFormat": "ready" },
+        { "refId": "B", "expr": "rabbitmq_queue_messages_unacked{queue=\"orders\"}", "legendFormat": "unacked" }
+      ]
+    },
+    {
+      "id": 5, "type": "logs", "title": "Warnings and errors",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 10 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending" },
+      "targets": [{ "refId": "A", "expr": "{service_name=~\"order-service|pricing-service\"} | detected_level =~ \"warn|error\"" }]
+    }
+  ]
+}

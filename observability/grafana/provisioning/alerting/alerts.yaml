@@ -1,0 +1,86 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: agent-webhook
+    receivers:
+      - uid: agent-webhook
+        type: webhook
+        settings:
+          url: http://alert-receiver:8000/alerts
+          httpMethod: POST
+
+policies:
+  - orgId: 1
+    receiver: agent-webhook
+    group_by: ["alertname"]
+    group_wait: 5s
+    group_interval: 30s
+    repeat_interval: 5m
+
+groups:
+  - orgId: 1
+    name: order-flow
+    folder: Incident Response
+    interval: 10s
+    rules:
+      - uid: order-submit-error-rate
+        title: OrderSubmitErrorRateHigh
+        condition: C
+        for: 30s
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: critical
+          flow: order
+        annotations:
+          summary: More than 20% of order submissions are failing (order-service -> pricing/RabbitMQ)
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: sum(rate(orders_submitted_total{status="error"}[1m])) / sum(rate(orders_submitted_total[1m]))
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0.2] }
+      - uid: pricing-consumer-error-rate
+        title: PricingConsumerErrorRateHigh
+        condition: C
+        for: 30s
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: critical
+          flow: order
+        annotations:
+          summary: More than 20% of queued orders are being rejected by pricing-service
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: sum(rate(orders_priced_total{status="error"}[1m])) / sum(rate(orders_priced_total[1m]))
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0.2] }
