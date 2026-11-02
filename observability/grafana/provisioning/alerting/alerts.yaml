@@ -84,3 +84,33 @@ groups:
               expression: B
               conditions:
                 - evaluator: { type: gt, params: [0.2] }
+      - uid: order-queue-backlog
+        title: OrderQueueBacklog
+        condition: C
+        for: 30s
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+          flow: order
+        annotations:
+          summary: The orders queue has more than 20 messages waiting; the pricing consumer is falling behind
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: sum(rabbitmq_queue_messages_ready)
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [20] }

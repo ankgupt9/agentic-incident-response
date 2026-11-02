@@ -5,6 +5,7 @@ x-service: &service
   environment: &service-env
     OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    ENABLE_FAULT_INJECTION: "true"
   depends_on:
     rabbitmq:
       condition: service_healthy

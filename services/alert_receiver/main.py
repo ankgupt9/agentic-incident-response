@@ -34,3 +34,9 @@ async def alerts(request: Request) -> dict:
 @app.get("/alerts/recent")
 async def recent() -> list[dict]:
     return list(received)
+
+
+@app.delete("/alerts/recent")
+async def reset() -> dict:
+    received.clear()
+    return {"received": 0}

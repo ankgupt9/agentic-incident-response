@@ -1,0 +1,96 @@
+# PLACEHOLDER failure catalog. Ankur replaces these with real failures from his
+# Ciena integration experience (root causes, symptoms, fixes in his own words).
+# The `root_cause.category` values and `fault` entries are what the injector and
+# the Day 4 eval scorer key on, so keep the structure when rewriting entries.
+#
+# fault.service: order-service | pricing-service
+# fault.name:    a switch implemented in that service (see services/*/main.py)
+
+failures:
+  - id: F01
+    title: Pricing service outage
+    placeholder: true
+    fault: { service: pricing-service, name: quote_error, params: { status: 503 } }
+    expected_alert: OrderSubmitErrorRateHigh
+    symptoms: Order submissions fail with 502; pricing-service /quote returns 503.
+    root_cause:
+      category: dependency_outage
+      statement: pricing-service is returning 503 for every quote request, so order-service cannot price orders.
+    suggested_fix: Restart or roll back pricing-service; check its upstream dependencies.
+
+  - id: F02
+    title: Pricing service slow
+    placeholder: true
+    fault: { service: pricing-service, name: quote_delay, params: { seconds: 6 } }
+    expected_alert: OrderSubmitErrorRateHigh
+    symptoms: POST /orders latency hits the 5s client timeout, then submissions fail with 502.
+    root_cause:
+      category: dependency_latency
+      statement: pricing-service quote latency exceeds order-service's 5s timeout.
+    suggested_fix: Investigate pricing-service saturation; raise timeout only as a stopgap.
+
+  - id: F03
+    title: Stale price quotes
+    placeholder: true
+    fault: { service: pricing-service, name: stale_quotes, params: { factor: 1.1 } }
+    expected_alert: PricingConsumerErrorRateHigh
+    symptoms: Orders are accepted (202) but the pricing consumer rejects them with "price mismatch".
+    root_cause:
+      category: data_inconsistency
+      statement: The /quote endpoint serves prices 10% off the master price list the consumer validates against.
+    suggested_fix: Flush the quote cache and re-sync it with the master price list.
+
+  - id: F04
+    title: SKU missing from catalog
+    placeholder: true
+    fault: { service: pricing-service, name: sku_missing, params: { sku: SKU-1003 } }
+    expected_alert: OrderSubmitErrorRateHigh
+    symptoms: Orders for SKU-1003 fail with 502; pricing-service logs "unknown sku=SKU-1003".
+    root_cause:
+      category: missing_reference_data
+      statement: SKU-1003 was dropped from the pricing catalog while orders still reference it.
+    suggested_fix: Restore SKU-1003 in the pricing catalog.
+
+  - id: F05
+    title: Message schema drift
+    placeholder: true
+    fault: { service: order-service, name: schema_drift }
+    expected_alert: PricingConsumerErrorRateHigh
+    symptoms: Consumer fails with KeyError 'sku'; messages carry item_sku instead.
+    root_cause:
+      category: schema_mismatch
+      statement: order-service renamed the sku field to item_sku in the queue message; the consumer still expects sku.
+    suggested_fix: Revert the field rename or deploy a consumer that accepts both names.
+
+  - id: F06
+    title: Malformed message payload
+    placeholder: true
+    fault: { service: order-service, name: malformed_payload }
+    expected_alert: PricingConsumerErrorRateHigh
+    symptoms: Consumer fails with a JSON decode error; the payload is truncated.
+    root_cause:
+      category: malformed_payload
+      statement: order-service is publishing truncated JSON to the orders queue.
+    suggested_fix: Fix the serializer or publish path; replay the rejected orders once fixed.
+
+  - id: F07
+    title: Broker connection lost on publish
+    placeholder: true
+    fault: { service: order-service, name: publish_error }
+    expected_alert: OrderSubmitErrorRateHigh
+    symptoms: Submissions fail with 502 after a successful quote; order-service logs an AMQP connection error.
+    root_cause:
+      category: messaging_failure
+      statement: order-service lost its RabbitMQ connection and cannot publish orders.
+    suggested_fix: Check broker health and network; restart order-service to re-establish the connection.
+
+  - id: F08
+    title: Stalled consumer, queue backlog
+    placeholder: true
+    fault: { service: pricing-service, name: consumer_delay, params: { seconds: 5 } }
+    expected_alert: OrderQueueBacklog
+    symptoms: Orders are accepted but orders queue depth climbs; consumer processes one message per 5s.
+    root_cause:
+      category: consumer_stall
+      statement: The pricing consumer is processing messages far slower than they arrive, so the queue backs up.
+    suggested_fix: Find why the consumer is slow (blocking call, resource limits); scale consumers.

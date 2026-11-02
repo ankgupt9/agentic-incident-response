@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException, Request
 from opentelemetry import metrics
 from pydantic import BaseModel, Field
 
+from services.common.faults import FaultRegistry, mount_fault_admin
 from services.common.telemetry import instrument_app, setup_telemetry
 
 SERVICE = "order-service"
@@ -22,6 +23,7 @@ RABBITMQ_URL = os.getenv("RABBITMQ_URL")
 
 setup_telemetry(SERVICE)
 logger = logging.getLogger(SERVICE)
+faults = FaultRegistry({"publish_error", "malformed_payload", "schema_drift"})
 meter = metrics.get_meter(SERVICE)
 orders_submitted = meter.create_counter("orders_submitted", description="Order submissions, by outcome")
 submit_duration = meter.create_histogram("order_submit_duration", unit="ms", description="POST /orders latency")
@@ -34,15 +36,26 @@ class OrderIn(BaseModel):
 
 
 def make_publisher(channel: aio_pika.abc.AbstractChannel):
-    async def publish(body: dict) -> None:
+    async def publish(body: dict | bytes) -> None:
         message = aio_pika.Message(
-            json.dumps(body).encode(),
+            body if isinstance(body, bytes) else json.dumps(body).encode(),
             content_type="application/json",
             delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
         )
         await channel.default_exchange.publish(message, routing_key=QUEUE)
 
     return publish
+
+
+def apply_publish_faults(body: dict) -> dict | bytes:
+    if faults.get("publish_error") is not None:
+        raise aio_pika.exceptions.AMQPConnectionError("injected: broker connection lost")
+    if faults.get("malformed_payload") is not None:
+        return b'{"order_id": "' + body["order_id"].encode()  # truncated JSON
+    if faults.get("schema_drift") is not None:
+        # Upstream renamed a field without telling the consumer.
+        body["item_sku"] = body.pop("sku")
+    return body
 
 
 @asynccontextmanager
@@ -62,6 +75,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=SERVICE, lifespan=lifespan)
 instrument_app(app)
+mount_fault_admin(app, faults)
 
 
 @app.get("/health")
@@ -77,7 +91,8 @@ async def create_order(order: OrderIn, request: Request) -> dict:
         resp = await request.app.state.http.get(f"{PRICING_URL}/quote/{order.sku}")
         resp.raise_for_status()
         quoted_price = resp.json()["unit_price"]
-        await request.app.state.publisher({**order.model_dump(), "order_id": order_id, "quoted_price": quoted_price})
+        body = {**order.model_dump(), "order_id": order_id, "quoted_price": quoted_price}
+        await request.app.state.publisher(apply_publish_faults(body))
     except (httpx.HTTPError, aio_pika.exceptions.AMQPException) as exc:
         orders_submitted.add(1, {"status": "error"})
         logger.error("order submission failed order_id=%s sku=%s error=%r", order_id, order.sku, exc)

@@ -11,6 +11,7 @@ from aio_pika.abc import AbstractIncomingMessage
 from fastapi import FastAPI, HTTPException
 from opentelemetry import metrics
 
+from services.common.faults import FaultRegistry, mount_fault_admin
 from services.common.telemetry import instrument_app, setup_telemetry
 from services.pricing_service.catalog import get_price, price_order
 
@@ -20,11 +21,14 @@ RABBITMQ_URL = os.getenv("RABBITMQ_URL")
 
 setup_telemetry(SERVICE)
 logger = logging.getLogger(SERVICE)
+faults = FaultRegistry({"quote_error", "quote_delay", "stale_quotes", "sku_missing", "consumer_delay"})
 meter = metrics.get_meter(SERVICE)
 orders_priced = meter.create_counter("orders_priced", description="Orders consumed from the queue, by outcome")
 
 
 async def handle_message(message: AbstractIncomingMessage) -> None:
+    if (fault := faults.get("consumer_delay")) is not None:
+        await asyncio.sleep(fault.get("seconds", 5))
     try:
         order = json.loads(message.body)
         total = price_order(order)
@@ -45,6 +49,7 @@ async def lifespan(app: FastAPI):
         connection = await aio_pika.connect_robust(RABBITMQ_URL)
         channel = await connection.channel()
         queue = await channel.declare_queue(QUEUE, durable=True)
+        await channel.set_qos(prefetch_count=1)
         await queue.consume(handle_message)
         logger.info("consuming queue=%s", QUEUE)
     yield
@@ -54,6 +59,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=SERVICE, lifespan=lifespan)
 instrument_app(app)
+mount_fault_admin(app, faults)
 
 
 @app.get("/health")
@@ -63,9 +69,18 @@ async def health() -> dict:
 
 @app.get("/quote/{sku}")
 async def quote(sku: str) -> dict:
+    if (fault := faults.get("quote_error")) is not None:
+        raise HTTPException(status_code=fault.get("status", 503), detail="injected quote failure")
+    if (fault := faults.get("quote_delay")) is not None:
+        await asyncio.sleep(fault.get("seconds", 6))
     try:
+        if (fault := faults.get("sku_missing")) is not None and fault.get("sku") == sku:
+            raise KeyError(sku)
         price = get_price(sku)
     except KeyError:
         logger.warning("quote requested for unknown sku=%s", sku)
         raise HTTPException(status_code=404, detail=f"unknown sku {sku}") from None
+    if (fault := faults.get("stale_quotes")) is not None:
+        # Quote cache is out of sync with the master price list used by the consumer.
+        price = round(price * fault.get("factor", 1.1), 2)
     return {"sku": sku, "unit_price": price}
