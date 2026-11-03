@@ -1,2 +1,2 @@
 # agentic-incident-response
-See [docs/architecture.md](docs/architecture.md) for the system diagrams.
+Start with [docs/solution-design.md](docs/solution-design.md) for the full business and technical design, or [docs/architecture.md](docs/architecture.md) for the diagrams alone.
