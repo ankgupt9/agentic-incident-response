@@ -1,7 +1,7 @@
 # Writing agent/loop.py
 
 Goal: `run_diagnosis(alert, gateway, toolbox, max_steps=8) -> DiagnosisResult`.
-Run `pytest tests/test_loop.py -v`; tests skip until you raise nothing from the stub, then each one is a requirement.
+Run `pytest tests/test_loop.py -v`. The tests skip while the stub raises `NotImplementedError`; once you replace it, each one is a requirement.
 
 ## What you are building
 
