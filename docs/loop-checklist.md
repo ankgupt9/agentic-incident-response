@@ -1,11 +1,11 @@
-# Writing agent/loop.py
+# agent/loop.py: what it does and why
 
 Goal: `run_diagnosis(alert, gateway, toolbox, max_steps=8) -> DiagnosisResult`.
-Run `pytest tests/test_loop.py -v`. The tests skip while the stub raises `NotImplementedError`; once you replace it, each one is a requirement.
+`agent/loop.py` implements this checklist and passes `tests/test_loop.py`. Review it against the list below; each item is something the loop must do and you should be able to explain why.
 
-## What you are building
+## What the loop does
 
-Claude requests tools; your loop runs them. Claude remembers nothing between calls, so the loop owns the history.
+Claude requests tools; the loop runs them. Claude remembers nothing between calls, so the loop owns the history.
 
 1. Build the first user message from the alert (`agent.prompts.alert_prompt`).
 2. Offer `toolbox.specs() + [submit_diagnosis_tool()]`.

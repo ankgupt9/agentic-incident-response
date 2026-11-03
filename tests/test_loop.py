@@ -1,4 +1,4 @@
-"""Behavior the core loop must satisfy. Skipped until agent/loop.py is implemented.
+"""Behavior the core loop must satisfy.
 
 Each test scripts the model with FakeGateway and the tools with FakeToolbox, so the loop
 is exercised with zero API spend. Assert on what the loop sends to the gateway, not just
@@ -131,3 +131,53 @@ async def test_usage_and_cost_are_summed_across_model_calls():
 async def test_gateway_failure_returns_a_failed_result_instead_of_raising():
     result = await run(FakeGateway([]))
     assert result.status == "failed" and result.error
+
+
+async def test_text_only_reply_is_nudged_once_then_accepted_if_it_submits():
+    gw = FakeGateway([text_response("Let me think."), submit()])
+    result = await run(gw)
+    assert result.status == "complete"
+    assert "submit_diagnosis" in str(gw.calls[-1]["messages"][-1]["content"])
+
+
+async def test_text_only_replies_twice_fail():
+    result = await run(FakeGateway([text_response("hmm"), text_response("still hmm")]))
+    assert result.status == "failed" and "without submitting" in result.error
+
+
+async def test_bad_submission_alongside_another_tool_call_answers_both():
+    bad = tool_use_response(("a", "query_logs", {}), ("s1", "submit_diagnosis", {**VALID, "confidence": 5}))
+    gw = FakeGateway([bad, submit("s2")])
+    tb = toolbox()
+    result = await run(gw, tb)
+    assert result.status == "complete" and tb.calls == [("query_logs", {})]
+    history = gw.calls[-1]["messages"]
+    assert [c["tool_use_id"] for c in history[-1]["content"]] == ["a", "s1"]
+    assert_tool_calls_paired(history)
+
+
+async def test_tool_that_raises_becomes_an_error_result():
+    class Exploding(FakeToolbox):
+        async def call(self, name, args):
+            raise RuntimeError("backend exploded")
+
+    gw = FakeGateway([tool_use_response(("t1", "query_logs", {})), submit()])
+    result = await run(gw, Exploding({"query_logs": "x"}))
+    assert result.status == "complete"
+    block = gw.calls[-1]["messages"][-1]["content"][0]
+    assert block["is_error"] is True and "RuntimeError" in block["content"]
+
+
+async def test_investigation_tool_requested_after_the_cap_is_refused():
+    gw = FakeGateway([
+        tool_use_response(("t1", "query_logs", {})),
+        tool_use_response(("t2", "query_logs", {})),  # asked for after the cap: only submit is offered
+    ])
+    tb = toolbox()
+    result = await run(gw, tb, max_steps=1)
+    assert result.status == "failed" and len(tb.calls) == 1
+
+
+async def test_max_steps_must_be_positive():
+    with pytest.raises(ValueError):
+        await run_diagnosis(ALERT, FakeGateway([]), toolbox(), max_steps=0)

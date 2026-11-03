@@ -52,7 +52,7 @@ The second half of that list is the point of the project: it is as much about go
 | Approver | Authorizes any action that changes something | Human approval gate (Day 3) |
 | Platform owner | Runs the stack, owns alert rules and runbooks | Grafana, runbook library |
 | AI governance owner | Sets what the agent may do, reviews its behavior and cost | Guardrails, AI Health dashboard, audit log, evals |
-| Developer (Ankur) | Writes the failure catalog, runbooks and the core loop | Repository |
+| Developer (Ankur) | Writes the failure catalog, runbooks and catalog entries; reviews the core loop and every action tool and guardrail | Repository |
 
 ## A4. Business process flow
 
@@ -419,7 +419,7 @@ The only path to any model. The rest of the code sees one interface and never a 
 
 ### Core loop
 
-Owner: Ankur. The contract is `run_diagnosis(alert, gateway, toolbox, max_steps=8) -> DiagnosisResult`. The model never runs tools: it requests them and the loop executes them, so the loop is the control point for limits, safety and records.
+The contract is `run_diagnosis(alert, gateway, toolbox, max_steps=8) -> DiagnosisResult`. The model never runs tools: it requests them and the loop executes them, so the loop is the control point for limits, safety and records.
 
 ```mermaid
 stateDiagram-v2
@@ -439,7 +439,7 @@ stateDiagram-v2
     Failed --> [*]
 ```
 
-`tests/test_loop.py` holds ten scenarios the loop must satisfy: happy path, parallel tool calls answered in one message, tool errors passed to the model, unknown tools, step-cap forcing, failure after the cap, one retry on a bad diagnosis, failure after two, cost summing, and gateway failure. They were checked against a throwaway reference implementation and skip until the real loop exists.
+`tests/test_loop.py` holds ten scenarios the loop must satisfy: happy path, parallel tool calls answered in one message, tool errors passed to the model, unknown tools, step-cap forcing, failure after the cap, one retry on a bad diagnosis, failure after two, cost summing, and gateway failure. The loop in `agent/loop.py` passes all ten, and six more tests cover a text-only reply, a bad submission sent alongside another tool call, a tool that raises, a tool requested after the cap, and invalid `max_steps`.
 
 ### Trigger service
 
@@ -639,13 +639,13 @@ An ablation compares telemetry only against telemetry plus knowledge tools, whic
 | Trigger service | Built | `agent/service.py` | 5 |
 | Agent tracing and metrics | Built | `agent/tracing.py`, `agent/runner.py` | 5 |
 | Phoenix and AI Health dashboard | Built | `docker-compose.yml`, `ai-health.json` | checked on live stack |
-| Core loop | **Next: Ankur writes it** | `agent/loop.py`, `docs/loop-checklist.md` | 10 scenarios waiting |
+| Core loop | Built; Ankur to review | `agent/loop.py`, `docs/loop-checklist.md` | 16 |
 | End-to-end run | Waiting on the loop | | |
 | Knowledge layer (runbooks, catalog, contracts, change events) | Planned (Day 2) | `knowledge/`, see `docs/knowledge-design.md` | |
 | Actions, governance, kill switch | Planned (Day 3) | | |
 | Evals, ablation, README, demo | Planned (Day 4) | | |
 
-Test totals: 61 passing, 10 skipped (the loop scenarios).
+Test totals: 77 passing, 0 skipped.
 
 ## C3. Ports and endpoints
 
@@ -722,12 +722,12 @@ What this proof of concept deliberately simplifies:
 
 ## C7. Roadmap
 
-Four days. The knowledge layer has its own design in [knowledge-design.md](knowledge-design.md). It is built inside Days 2 and 3, in parallel with Ankur's loop and runbook work, rather than adding a day. The telemetry-only end-to-end run on Day 2 doubles as the first arm of the knowledge ablation. Days 2 and 3 are heavy and depend on the loop and runbooks arriving early.
+Four days. The knowledge layer has its own design in [knowledge-design.md](knowledge-design.md). It is built inside Days 2 and 3, in parallel with Ankur's runbook work, rather than adding a day. The telemetry-only end-to-end run on Day 2 doubles as the first arm of the knowledge ablation. Days 2 and 3 are heavy and depend on the runbooks arriving early.
 
 | Day | Work | Owner | Done when |
 |---|---|---|---|
 | 1 | Platform and telemetry | Done | Injected failures fire alerts |
-| 2 | Core loop; runbooks and catalog entries. In parallel: remove answer-leaking fault logs first, then knowledge store, ingestion, lint and the runbook, catalog, contract and change-event tools. End-to-end run with knowledge tools off (ablation arm A) | Ankur: loop and content. Claude Code: knowledge machinery | A diagnosis appears in Phoenix and on the AI Health dashboard; knowledge tools pass golden-query tests |
+| 2 | Core loop (built); runbooks and catalog entries. Then: remove answer-leaking fault logs first, then knowledge store, ingestion, lint and the runbook, catalog, contract and change-event tools. End-to-end run with knowledge tools off (ablation arm A) | Ankur: content and loop review. Claude Code: knowledge machinery | A diagnosis appears in Phoenix and on the AI Health dashboard; knowledge tools pass golden-query tests |
 | 3 | Knowledge integration (`knowledge_refs`, citation check), actions, approval gate, audit log, guardrails, kill switch, adversarial tests, alert rules on the agent | Claude Code scaffolds, Ankur reviews every line | The agent cites a runbook and a catalog entry; a proposed fix waits for approval; only approved actions execute; the kill switch stops new diagnoses |
 | 4 | Evals, two-arm ablation (A telemetry only, B plus knowledge), calibration, tuning, README, demo, publish | Both | Before-and-after numbers and the ablation result captured; repo and post published |
 

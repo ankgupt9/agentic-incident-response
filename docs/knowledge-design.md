@@ -238,17 +238,17 @@ The knowledge layer is built inside Days 2 and 3, in parallel with work Ankur ow
 | Day | Theme | Work | Done when |
 |---|---|---|---|
 | 1 | Platform and telemetry | Built | Injected failures fire alerts (done) |
-| 2 | Agent core and knowledge machinery | Built: gateway, MCP telemetry tools, schema, trigger, tracing, dashboard. Ankur: core loop, runbooks, catalog entries. Claude Code in parallel, in order: remove the fault-log leak and add change events with distractors; Postgres store, ingestion, lint, versioning; K1 to K4 tools; golden-query retrieval tests. Then the end-to-end run with knowledge tools off (**arm A**). | A diagnosis appears in Phoenix and on the AI Health dashboard; knowledge tools return the right entries on golden queries |
+| 2 | Agent core and knowledge machinery | Built: gateway, MCP telemetry tools, schema, trigger, tracing, dashboard. Core loop written; Ankur reviews it and writes runbooks and catalog entries. Claude Code, in order: remove the fault-log leak and add change events with distractors; Postgres store, ingestion, lint, versioning; K1 to K4 tools; golden-query retrieval tests. Then the end-to-end run with knowledge tools off (**arm A**). | A diagnosis appears in Phoenix and on the AI Health dashboard; knowledge tools return the right entries on golden queries |
 | 3 | Knowledge integration, actions, governance | `knowledge_refs` and citation check, prompt guidance to consult knowledge; `replay_message` (sandbox), `draft_pull_request` (draft), approval page, audit log (including knowledge lookups), guardrails, kill switch, cost tracker, adversarial tests, alert rules on the agent | The agent cites a runbook and a catalog entry; a proposed fix waits for approval; only approved actions execute; the kill switch stops new diagnoses |
 | 4 | Evals and publish | Eval harness and scorer, two-arm ablation (A telemetry only, B plus knowledge), calibration, tuning and rerun, README with control mapping, demo, publish | Before-and-after numbers and the ablation result captured; repo and post published |
 
-Days 2 and 3 are heavy and depend on Ankur finishing the loop and the runbooks early. If behind, the cut order is: LangGraph port, then K5 and K6 (past incidents, `ask_human`), then K9 (derived service map). Never cut evals, the approval gate or the knowledge citation check. Arm B is one run with all of K1 to K4 on; splitting it into runbooks-only and catalog-plus-changes arms is a later refinement if time allows.
+Days 2 and 3 are heavy and depend on Ankur finishing the runbooks early. If behind, the cut order is: LangGraph port, then K5 and K6 (past incidents, `ask_human`), then K9 (derived service map). Never cut evals, the approval gate or the knowledge citation check. Arm B is one run with all of K1 to K4 on; splitting it into runbooks-only and catalog-plus-changes arms is a later refinement if time allows.
 
 ### Who does what
 
 | Task | Owner |
 |---|---|
-| Core loop | Ankur |
+| Core loop | Claude Code wrote it at Ankur's request; Ankur reviews and must be able to defend it |
 | 15 to 20 runbooks and the service catalog entries | Ankur (start now; needed by Day 2) |
 | Real failure catalog | Ankur |
 | Ingestion, lint, store, tools, schema change, simulator changes, tests | Claude Code |
