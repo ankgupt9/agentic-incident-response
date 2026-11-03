@@ -25,7 +25,7 @@ Today an on-call engineer has to:
 3. Form a theory, often after asking colleagues who know that system.
 4. Propose a fix, get it approved, apply it and confirm recovery.
 
-Steps 2 and 3 are slow, repetitive and dependent on tribal knowledge. They are also the steps an AI agent can do well, provided it is held to strict rules.
+Steps 2 and 3 are slow, repetitive and dependent on tribal knowledge. An AI agent can take over the data gathering of step 2 directly. Step 3 depends on knowledge that lives in people's heads (how the systems are wired, what changed recently, what has gone wrong before), so the agent is only as good as the knowledge source it is given. Making that knowledge explicit, searchable and governed is the central design challenge of this project.
 
 Off-the-shelf AI assistants in observability and developer tools can summarize an alert. This project targets three gaps that matter in an enterprise setting:
 
@@ -36,7 +36,7 @@ Off-the-shelf AI assistants in observability and developer tools can summarize a
 ## A2. What this solution does
 
 1. **Detects** a failure in a simulated order flow through ordinary monitoring alerts.
-2. **Investigates** automatically: the agent reads logs, follows traces and checks metrics, the way an engineer would.
+2. **Investigates** automatically: the agent reads logs, follows traces and checks metrics. With the knowledge tools (Day 3) it also consults runbooks, the service catalog and recent changes, which stand in for the colleague an engineer would ask.
 3. **Reports** a structured diagnosis: root cause, evidence quoted from the data, confidence from 0 to 100%, and a recommended fix.
 4. **Proposes** a fix as text. In Day 3 it can also draft a pull request or replay a message in a sandbox, but only after guardrails and human approval.
 5. **Governs and monitors itself.** Every model call, tool call, cost and decision is traced and measured on a dashboard, and every action is audit-logged.
@@ -146,6 +146,8 @@ flowchart TB
 | No accountability | Audit log of every tool call, decision and approval | Postgres audit table | Day 3 |
 | Sensitive data in traces | Content capture can be switched off; text truncated | Setting `AGENT_TRACE_CONTENT` | Built |
 | Agent is down or misbehaving | Kill switch; failed diagnoses are recorded, not hidden | Kill-switch test | Day 3 |
+| Stale or wrong knowledge (runbooks, catalog) leads to a confident wrong answer | Each knowledge entry has an owner and a last-reviewed date; diagnoses must cite the entry they used; eval ablation shows the knowledge's effect | Citations and ablation in evals | Day 3 and Day 4 |
+| Simulator leaks the answer (fault toggles are logged) | Remove those log lines before the baseline; emit neutral change events | Eval baseline reviewed for leakage | Day 3 |
 | Repeated alerts cause repeated spend | Same alert is not re-diagnosed within 10 minutes; at most 2 diagnoses run at once | Service tests | Built |
 
 ## A6. How success is measured
@@ -201,6 +203,7 @@ flowchart TB
         G2["Core loop"]
         G3["Model gateway"]
         G4["Read-only MCP tools"]
+        G6["Knowledge tools: runbooks,<br/>catalog, recent changes"]:::planned
         G5["Structured diagnosis"]
     end
     subgraph GOVERN["Govern"]
@@ -254,10 +257,11 @@ flowchart TB
 
     CLAUDE{{"Claude API"}}
 
-    subgraph L4["Layer 4: MCP tools"]
+    subgraph L4["Layer 4: MCP tools and knowledge"]
         direction LR
         MCP["MCP server: query_logs,<br/>get_trace, query_metrics"]
-        RB["search_runbooks,<br/>replay_message,<br/>draft_pull_request"]:::planned
+        KN["Knowledge tools: runbooks,<br/>service catalog, recent changes"]:::planned
+        ACT["Action tools: replay_message,<br/>draft_pull_request"]:::planned
     end
 
     subgraph L5["Layer 5: Governance (Day 3)"]
@@ -280,7 +284,8 @@ flowchart TB
     LOOP -- "tool calls" --> MCP
     MCP -- "queries" --> STORES
     LOOP -. "every action" .-> GR
-    AP -. "approved only" .-> RB
+    LOOP -. "knowledge lookups" .-> KN
+    AP -. "approved only" .-> ACT
     LOOP -- "spans + metrics" --> L6
     EVAL -. "replays labeled failures,<br/>scores the loop" .-> INJ
 
@@ -507,7 +512,19 @@ Design rules shared by all tools:
 - Failures return an error result the model can read, not an exception.
 - A `sanitize_log_text` hook marks where the Day 3 prompt-injection filter plugs in.
 
-Planned for Day 3: `search_runbooks` (Postgres full-text search), `replay_message` (sandbox only) and `draft_pull_request` (draft only).
+Planned for Day 3:
+
+| Tool | Kind | Purpose |
+|---|---|---|
+| `search_runbooks` | Knowledge | Postgres full-text search over the runbooks Ankur writes |
+| `get_service_info` | Knowledge | Service catalog: dependencies, message contracts, owners, known quirks, refresh schedules |
+| `get_recent_changes` | Knowledge | Deploys, config and schema changes, the "what changed?" question people ask a colleague |
+| `replay_message` | Action | Sandbox only, behind guardrails and approval |
+| `draft_pull_request` | Action | Draft only, behind guardrails and approval |
+
+Later: `search_past_incidents` (earlier diagnoses and how they were resolved) and `ask_human` (the agent poses a specific question to the on-call; question and answer are audit-logged). After each incident the engineer confirms or corrects the root cause, which feeds past incidents and becomes a new eval label, so tribal knowledge is written down once.
+
+**Knowledge is the lever for step 3.** Telemetry explains what happened; knowledge explains why. The quality, ownership and freshness of these sources cap the agent's accuracy, so they are treated as governed assets: owned, dated, versioned in the repository and cited in diagnoses.
 
 ## B8. Governance (Layer 5, Day 3)
 
@@ -586,7 +603,7 @@ An eval harness replays each labeled failure, lets the agent diagnose it, and sc
 | Cost and latency | From the result record |
 | Guardrail tests | Attack scenarios that must be blocked |
 
-The run produces a baseline, then prompt, tool-description and retrieval changes are tuned and measured again, giving a before-and-after. Development uses the small model. Final evals run on a larger model, and the comparison of the two is published. Evals can also run as a regression gate on any prompt or model change.
+An ablation compares telemetry only against telemetry plus knowledge tools, which measures what tribal knowledge is worth. The run produces a baseline, then prompt, tool-description and retrieval changes are tuned and measured again, giving a before-and-after. Development uses the small model. Final evals run on a larger model, and the comparison of the two is published. Evals can also run as a regression gate on any prompt or model change.
 
 ---
 
@@ -708,7 +725,8 @@ What this proof of concept deliberately simplifies:
 |---|---|---|
 | Write the core loop | Ankur | `tests/test_loop.py` fully passes |
 | End-to-end run | Both | An injected F03 produces a diagnosis visible in Phoenix and on the AI Health dashboard |
-| Runbooks and `search_runbooks` | Ankur writes runbooks, Claude Code scaffolds | The agent cites a runbook in a diagnosis |
+| Runbooks, service catalog and `search_runbooks`, `get_service_info`, `get_recent_changes` | Ankur writes the content, Claude Code scaffolds the tools | The agent cites a runbook or catalog entry in a diagnosis |
+| Remove answer-leaking fault logs from the simulator | Claude Code | No log line names the injected fault |
 | Actions, guardrails, approval, audit log, kill switch | Claude Code scaffolds, Ankur reviews every line | A proposed fix waits for approval; only approved actions execute; the kill switch stops new diagnoses |
 | Alert rules on the agent | Claude Code | A cost spike or tool-error surge fires an alert |
 | Evals and baseline | Both | Accuracy, calibration, cost and latency reported on the real catalog |

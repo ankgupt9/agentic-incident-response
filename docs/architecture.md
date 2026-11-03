@@ -29,10 +29,11 @@ flowchart TB
 
     CLAUDE{{"Claude API"}}
 
-    subgraph L4["Layer 4: MCP tools"]
+    subgraph L4["Layer 4: MCP tools and knowledge"]
         direction LR
         MCP["MCP server: query_logs,<br/>get_trace, query_metrics"]
-        RB["search_runbooks,<br/>replay_message,<br/>draft_pull_request"]:::planned
+        KN["Knowledge tools: runbooks,<br/>service catalog, recent changes"]:::planned
+        ACT["Action tools: replay_message,<br/>draft_pull_request"]:::planned
     end
 
     subgraph L5["Layer 5: Governance (Day 3)"]
@@ -55,7 +56,8 @@ flowchart TB
     LOOP -- "tool calls" --> MCP
     MCP -- "queries" --> STORES
     LOOP -. "every action" .-> GR
-    AP -. "approved only" .-> RB
+    LOOP -. "knowledge lookups" .-> KN
+    AP -. "approved only" .-> ACT
     LOOP -- "spans + metrics" --> L6
     EVAL -. "replays labeled failures,<br/>scores the loop" .-> INJ
 
