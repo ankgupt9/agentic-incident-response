@@ -4,7 +4,7 @@ An AI agent that investigates integration failures, and a platform that governs 
 
 | | |
 |---|---|
-| Status | Day 1 and most of Day 2 built. Day 3 (governance, actions) and Day 4 (evals) planned. |
+| Status | Days 1 and 2 built apart from the core loop. Day 3 (knowledge), Day 4 (actions, governance) and Day 5 (evals, publish) planned. |
 | Audience | Part A: business and product readers. Part B: engineers and interviewers. |
 | Repo | <https://github.com/ankgupta9/agentic-incident-response> |
 
@@ -38,7 +38,7 @@ Off-the-shelf AI assistants in observability and developer tools can summarize a
 1. **Detects** a failure in a simulated order flow through ordinary monitoring alerts.
 2. **Investigates** automatically: the agent reads logs, follows traces and checks metrics. With the knowledge tools (Day 3) it also consults runbooks, the service catalog and recent changes, which stand in for the colleague an engineer would ask.
 3. **Reports** a structured diagnosis: root cause, evidence quoted from the data, confidence from 0 to 100%, and a recommended fix.
-4. **Proposes** a fix as text. In Day 3 it can also draft a pull request or replay a message in a sandbox, but only after guardrails and human approval.
+4. **Proposes** a fix as text. On Day 4 it can also draft a pull request or replay a message in a sandbox, but only after guardrails and human approval.
 5. **Governs and monitors itself.** Every model call, tool call, cost and decision is traced and measured on a dashboard, and every action is audit-logged.
 6. **Proves itself** through evaluations that replay known failures and score accuracy, cost, latency and how well its confidence matches reality.
 
@@ -48,8 +48,8 @@ The second half of that list is the point of the project: it is as much about go
 
 | Role | What they do | Where they appear |
 |---|---|---|
-| On-call engineer | Receives the diagnosis, reviews evidence, decides whether to act | Reads the diagnosis; approves or rejects proposed actions (Day 3) |
-| Approver | Authorizes any action that changes something | Human approval gate (Day 3) |
+| On-call engineer | Receives the diagnosis, reviews evidence, decides whether to act | Reads the diagnosis; approves or rejects proposed actions (Day 4) |
+| Approver | Authorizes any action that changes something | Human approval gate (Day 4) |
 | Platform owner | Runs the stack, owns alert rules and runbooks | Grafana, runbook library |
 | AI governance owner | Sets what the agent may do, reviews its behavior and cost | Guardrails, AI Health dashboard, audit log, evals |
 | Developer (Ankur) | Writes the failure catalog, runbooks and the core loop | Repository |
@@ -69,7 +69,7 @@ flowchart LR
     G --> H["Confirms recovery"]
 ```
 
-The time spent between "alert" and "theory" is the cost this project targets. The baseline mean time to diagnose is measured in Day 4, not assumed.
+The time spent between "alert" and "theory" is the cost this project targets. The baseline mean time to diagnose is measured in Day 5, not assumed.
 
 ### After: agent-assisted incident handling
 
@@ -128,31 +128,31 @@ flowchart TB
 ### Process rules
 
 - The agent can only **look** today. All its tools are read-only.
-- When it can act (Day 3), the default is **dry-run**. Real changes need guardrails and explicit approval.
+- When it can act (Day 4), the default is **dry-run**. Real changes need guardrails and explicit approval.
 - A low-confidence diagnosis is a valid outcome. The agent is told to say so rather than guess.
 - If the agent hits its step limit it must still answer, and the result is flagged as forced.
-- A kill switch can stop the agent at any time (Day 3).
+- A kill switch can stop the agent at any time (Day 4).
 
 ## A5. Risks and controls
 
 | Risk | Control | Evidence it works | Status |
 |---|---|---|---|
-| The agent changes something it should not | Read-only tools; actions default to dry-run; guardrail allowlist | Tests that nothing executes without an approval record | Read-only built; rest Day 3 |
-| Log text tries to hijack the agent (prompt injection) | Logs labeled as untrusted data; system prompt forbids following them; filter hook in place | Adversarial test: a log line saying "ignore your instructions" | Labeling built; filter Day 3 |
+| The agent changes something it should not | Read-only tools; actions default to dry-run; guardrail allowlist | Tests that nothing executes without an approval record | Read-only built; rest Day 4 |
+| Log text tries to hijack the agent (prompt injection) | Logs labeled as untrusted data; system prompt forbids following them; filter hook in place | Adversarial test: a log line saying "ignore your instructions" | Labeling built; filter Day 4 |
 | The agent invents evidence | Evidence must be quoted from tool results; a check flags quotes never shown to the model | Ungrounded-evidence check, scored in evals | Check built; loop use is Ankur's call |
-| Runaway spend | Step cap; per-call cost tracking; cost-per-diagnosis panel; alert on spikes | AI Health dashboard | Tracking built; alerts Day 3 |
-| Overconfidence | Confidence is a required field; evals check calibration | Calibration report | Day 4 |
-| Silent model change | Model version pinned in config, never "latest"; changes audit-logged | Config and audit log | Pinned; logging Day 3 |
-| No accountability | Audit log of every tool call, decision and approval | Postgres audit table | Day 3 |
+| Runaway spend | Step cap; per-call cost tracking; cost-per-diagnosis panel; alert on spikes | AI Health dashboard | Tracking built; alerts Day 4 |
+| Overconfidence | Confidence is a required field; evals check calibration | Calibration report | Day 5 |
+| Silent model change | Model version pinned in config, never "latest"; changes audit-logged | Config and audit log | Pinned; logging Day 4 |
+| No accountability | Audit log of every tool call, decision and approval | Postgres audit table | Day 4 |
 | Sensitive data in traces | Content capture can be switched off; text truncated | Setting `AGENT_TRACE_CONTENT` | Built |
-| Agent is down or misbehaving | Kill switch; failed diagnoses are recorded, not hidden | Kill-switch test | Day 3 |
-| Stale or wrong knowledge (runbooks, catalog) leads to a confident wrong answer | Each knowledge entry has an owner and a last-reviewed date; diagnoses must cite the entry they used; eval ablation shows the knowledge's effect | Citations and ablation in evals | Day 3 and Day 4 |
+| Agent is down or misbehaving | Kill switch; failed diagnoses are recorded, not hidden | Kill-switch test | Day 4 |
+| Stale or wrong knowledge (runbooks, catalog) leads to a confident wrong answer | Each knowledge entry has an owner and a last-reviewed date; diagnoses must cite the entry they used; eval ablation shows the knowledge's effect | Citations and ablation in evals | Day 3 and Day 5 |
 | Simulator leaks the answer (fault toggles are logged) | Remove those log lines before the baseline; emit neutral change events | Eval baseline reviewed for leakage | Day 3 |
 | Repeated alerts cause repeated spend | Same alert is not re-diagnosed within 10 minutes; at most 2 diagnoses run at once | Service tests | Built |
 
 ## A6. How success is measured
 
-All measured by the Day 4 evaluation harness over the labeled failures. Targets are set after the baseline run, not before.
+All measured by the Day 5 evaluation harness over the labeled failures. Targets are set after the baseline run, not before.
 
 | Measure | Question it answers |
 |---|---|
@@ -264,7 +264,7 @@ flowchart TB
         ACT["Action tools: replay_message,<br/>draft_pull_request"]:::planned
     end
 
-    subgraph L5["Layer 5: Governance (Day 3)"]
+    subgraph L5["Layer 5: Governance (Day 4)"]
         direction LR
         GR["Guardrails"]:::planned --> AP["Human approval"]:::planned --> AUD[("Audit log")]:::planned
     end
@@ -275,7 +275,7 @@ flowchart TB
         AIH["AI Health dashboard"]
     end
 
-    EVAL["Layer 7: Eval harness (Day 4)<br/>accuracy, cost, latency,<br/>confidence calibration"]:::planned
+    EVAL["Layer 7: Eval harness (Day 5)<br/>accuracy, cost, latency,<br/>confidence calibration"]:::planned
 
     INJ -. "inject faults" .-> L1
     L1 -- "logs, traces, metrics" --> L2
@@ -294,7 +294,7 @@ flowchart TB
 
 ### Deployment view
 
-Everything except the agent runs in Docker Compose. During development the agent and its MCP server run on the host, so you can iterate and debug the loop quickly. Containerizing the agent is a Day 4 task.
+Everything except the agent runs in Docker Compose. During development the agent and its MCP server run on the host, so you can iterate and debug the loop quickly. Containerizing the agent is a Day 5 task.
 
 ```mermaid
 flowchart LR
@@ -446,7 +446,7 @@ stateDiagram-v2
 `agent/service.py` (FastAPI, port 8004, run with `uvicorn agent.service:app --port 8004`).
 
 - `POST /alerts` reads Grafana's payload, ignores resolved alerts, and starts one background diagnosis per firing alert.
-- The same alert is not re-diagnosed within 10 minutes. At most 2 diagnoses run at once. 200 records are kept, in memory (Postgres arrives with the audit log on Day 3).
+- The same alert is not re-diagnosed within 10 minutes. At most 2 diagnoses run at once. 200 records are kept, in memory (durable storage arrives with Postgres on Day 3, and the audit log follows on Day 4).
 - A crash in a diagnosis is recorded as a failed result, never an error to Grafana.
 - `GET /diagnoses` and `GET /diagnoses/{id}` return results.
 
@@ -510,9 +510,9 @@ Design rules shared by all tools:
 - Inputs are validated before they reach a query language (service names against a pattern, trace ids against hex, quotes escaped), so the model cannot inject LogQL.
 - Output is compact and size-capped so one call cannot flood the model's context.
 - Failures return an error result the model can read, not an exception.
-- A `sanitize_log_text` hook marks where the Day 3 prompt-injection filter plugs in.
+- A `sanitize_log_text` hook marks where the Day 4 prompt-injection filter plugs in.
 
-Planned for Day 3:
+Planned (knowledge tools on Day 3, action tools on Day 4; see [knowledge-design.md](knowledge-design.md)):
 
 | Tool | Kind | Purpose |
 |---|---|---|
@@ -526,7 +526,7 @@ Later: `search_past_incidents` (earlier diagnoses and how they were resolved) an
 
 **Knowledge is the lever for step 3.** Telemetry explains what happened; knowledge explains why. The quality, ownership and freshness of these sources cap the agent's accuracy, so they are treated as governed assets: owned, dated, versioned in the repository and cited in diagnoses.
 
-## B8. Governance (Layer 5, Day 3)
+## B8. Governance (Layer 5, Day 4)
 
 Every proposed action passes this path. Nothing executes without an approval record.
 
@@ -586,11 +586,11 @@ Spans carry both OpenTelemetry GenAI attributes and OpenInference attributes, wh
 | `agent_tokens_total` | model, type | Input and output tokens |
 | `agent_cost_usd_total` | model | Spend |
 | `agent_tool_calls_total` | tool, outcome | Tool calls and errors |
-| `agent_guardrail_blocks_total` | | Blocks (defined, used from Day 3) |
+| `agent_guardrail_blocks_total` | | Blocks (defined, used from Day 4) |
 
-The **AI Health** dashboard shows diagnoses by status, cost per diagnosis and total spend, tokens by type, model latency (p50, p95), tool calls by outcome, and diagnosis duration. Alert rules on the agent itself (cost spike, tool error rate, guardrail block rate) arrive on Day 3.
+The **AI Health** dashboard shows diagnoses by status, cost per diagnosis and total spend, tokens by type, model latency (p50, p95), tool calls by outcome, and diagnosis duration. Alert rules on the agent itself (cost spike, tool error rate, guardrail block rate) arrive on Day 4.
 
-## B10. Evaluation (Layer 7, Day 4)
+## B10. Evaluation (Layer 7, Day 5)
 
 An eval harness replays each labeled failure, lets the agent diagnose it, and scores the result. The existing `scripts/verify_failures.py` is its skeleton: it already injects a failure under load and waits for the alert.
 
@@ -620,7 +620,7 @@ An ablation compares telemetry only against telemetry plus knowledge tools, whic
 | Pydantic schemas at every boundary | Untrusted data (model output, log text, tool arguments) is checked before use | Validation proves shape, not truth |
 | Diagnosis category as free text plus a short label | Does not leak answers to the agent or break when the real catalog replaces the placeholders | Harder to score than a fixed list; revisit when the real catalog exists |
 | Phoenix over Langfuse | One container, no extra databases; Langfuse v3 needs Postgres, ClickHouse, Redis and object storage | Fewer enterprise features |
-| Agent runs on the host during development | Fast iteration and easy debugging of the loop | Containerized on Day 4 |
+| Agent runs on the host during development | Fast iteration and easy debugging of the loop | Containerized on Day 5 |
 | Tracing and metrics as wrappers | The loop stays free of observability code | One more layer to maintain |
 | `mcp<2` pinned | Version 2 renamed the server API | Upgrade later on purpose |
 | Same-alert dedupe and a concurrency cap | Grafana repeats notifications; model calls cost money | A real second incident for the same alert within 10 minutes is skipped |
@@ -641,8 +641,9 @@ An ablation compares telemetry only against telemetry plus knowledge tools, whic
 | Phoenix and AI Health dashboard | Built | `docker-compose.yml`, `ai-health.json` | checked on live stack |
 | Core loop | **Next: Ankur writes it** | `agent/loop.py`, `docs/loop-checklist.md` | 10 scenarios waiting |
 | End-to-end run | Waiting on the loop | | |
-| Runbooks, actions, governance, kill switch | Planned (Day 3) | | |
-| Evals, README, demo | Planned (Day 4) | | |
+| Knowledge layer (runbooks, catalog, contracts, change events) | Planned (Day 3) | `knowledge/`, see `docs/knowledge-design.md` | |
+| Actions, governance, kill switch | Planned (Day 4) | | |
+| Evals, ablation, README, demo | Planned (Day 5) | | |
 
 Test totals: 61 passing, 10 skipped (the loop scenarios).
 
@@ -715,20 +716,18 @@ What this proof of concept deliberately simplifies:
 - **Catalog realism.** The placeholder failures are cleaner than real ones. Accuracy numbers are only as credible as the catalog behind them. Replacing it is the single biggest lever on the project's credibility.
 - **Sample size.** Eight to ten failures give a rough accuracy figure, not a statistically tight one. Say so when publishing.
 - **Judge bias.** If a model scores fix quality, its bias needs a sanity check against human review of a sample.
-- **Prompt-injection coverage.** Labeling log text as untrusted reduces risk but does not remove it. The Day 3 filter and adversarial tests exist for this reason.
+- **Prompt-injection coverage.** Labeling log text as untrusted reduces risk but does not remove it. The Day 4 filter and adversarial tests exist for this reason.
 - **Model changes.** The pinned model protects against silent changes, but a deliberate upgrade needs a rerun of the evals before adoption.
 - **Open design question.** Fixed list versus free text for the root-cause category (see C1).
 
 ## C7. Roadmap
 
-| Step | Owner | Done when |
-|---|---|---|
-| Write the core loop | Ankur | `tests/test_loop.py` fully passes |
-| End-to-end run | Both | An injected F03 produces a diagnosis visible in Phoenix and on the AI Health dashboard |
-| Runbooks, service catalog and `search_runbooks`, `get_service_info`, `get_recent_changes` | Ankur writes the content, Claude Code scaffolds the tools | The agent cites a runbook or catalog entry in a diagnosis |
-| Remove answer-leaking fault logs from the simulator | Claude Code | No log line names the injected fault |
-| Actions, guardrails, approval, audit log, kill switch | Claude Code scaffolds, Ankur reviews every line | A proposed fix waits for approval; only approved actions execute; the kill switch stops new diagnoses |
-| Alert rules on the agent | Claude Code | A cost spike or tool-error surge fires an alert |
-| Evals and baseline | Both | Accuracy, calibration, cost and latency reported on the real catalog |
-| Tune and re-run | Both | Before-and-after captured |
-| README, demo, publish | Both | One-command setup and a 2 to 3 minute demo |
+Five days. The knowledge layer has its own design in [knowledge-design.md](knowledge-design.md). The telemetry-only end-to-end run on Day 2 doubles as the first arm of the knowledge ablation.
+
+| Day | Work | Owner | Done when |
+|---|---|---|---|
+| 1 | Platform and telemetry | Done | Injected failures fire alerts |
+| 2 | Core loop; end-to-end run (ablation arm A, telemetry only) | Ankur writes the loop; both run it | An injected failure produces a diagnosis visible in Phoenix and on the AI Health dashboard |
+| 3 | Knowledge layer: store, ingestion, lint, runbook, catalog, contract and change-event tools, `knowledge_refs` and citation check, remove answer-leaking fault logs | Ankur writes runbooks and catalog entries; Claude Code builds the machinery | The agent cites a runbook and a catalog entry; retrieval tests pass |
+| 4 | Actions and governance: sandbox replay, draft PR, approval gate, audit log, guardrails, kill switch, adversarial tests, alert rules on the agent. Stretch: past incidents, `ask_human` | Claude Code scaffolds, Ankur reviews every line | A proposed fix waits for approval; only approved actions execute; the kill switch stops new diagnoses |
+| 5 | Evals, four-arm ablation, calibration, tuning, README, demo, publish | Both | Before-and-after numbers and the ablation result captured; repo and post published |

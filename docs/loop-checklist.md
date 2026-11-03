@@ -29,9 +29,9 @@ Claude requests tools; your loop runs them. Claude remembers nothing between cal
 
 ## Optional, worth considering
 
-- `agent.schemas.ungrounded_evidence` flags evidence quotes that never appeared in any tool result. Do you reject, retry, or lower confidence? Day 4 evals will tell you which is right.
+- `agent.schemas.ungrounded_evidence` flags evidence quotes that never appeared in any tool result. Do you reject, retry, or lower confidence? Day 5 evals will tell you which is right.
 - Run parallel tool calls with `asyncio.gather`.
 
-## Not yours yet (Day 3)
+## Not yours yet (Day 4)
 
 Guardrail checks, audit log entries, kill switch and tracing spans plug into this loop later. Keep tool execution in one place so they have a single seam to hook.

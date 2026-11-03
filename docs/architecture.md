@@ -2,7 +2,7 @@
 
 Two systems share one telemetry stack: a simulated order flow that breaks on purpose, and an agent that diagnoses the breakage. The same Prometheus, Grafana and Tempo that watch the orders also watch the agent.
 
-Solid boxes are built. Dashed boxes are planned (Day 3 and Day 4).
+Solid boxes are built. Dashed boxes are planned (Days 3 to 5).
 
 ## 1. System overview
 
@@ -36,7 +36,7 @@ flowchart TB
         ACT["Action tools: replay_message,<br/>draft_pull_request"]:::planned
     end
 
-    subgraph L5["Layer 5: Governance (Day 3)"]
+    subgraph L5["Layer 5: Governance (Day 4)"]
         direction LR
         GR["Guardrails"]:::planned --> AP["Human approval"]:::planned --> AUD[("Audit log")]:::planned
     end
@@ -47,7 +47,7 @@ flowchart TB
         AIH["AI Health dashboard"]
     end
 
-    EVAL["Layer 7: Eval harness (Day 4)<br/>accuracy, cost, latency,<br/>confidence calibration"]:::planned
+    EVAL["Layer 7: Eval harness (Day 5)<br/>accuracy, cost, latency,<br/>confidence calibration"]:::planned
 
     INJ -. "inject faults" .-> L1
     L1 -- "logs, traces, metrics" --> L2
@@ -100,7 +100,7 @@ sequenceDiagram
     L-->>P: diagnosis span + metrics
 ```
 
-## 3. Governance control flow (Day 3, planned)
+## 3. Governance control flow (Day 4, planned)
 
 The agent can only look today. When actions arrive (`replay_message`, `draft_pull_request`), every one passes this path. Nothing executes without an approval record.
 

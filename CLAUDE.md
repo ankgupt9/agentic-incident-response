@@ -48,15 +48,19 @@ Python, FastAPI, RabbitMQ, OpenTelemetry Collector, Loki, Tempo, Prometheus, Gra
 - Ankur reviews every line of the action tools and guardrails himself.
 - No fancy UI. Evals, governance, and tracing matter more than a dashboard.
 
-## 4-day build plan
+## 5-day build plan
 
-Day 1, platform and telemetry: scaffold FastAPI services, RabbitMQ, Docker Compose; OTel, Loki, Tempo, Prometheus, Grafana configs with one dashboard and an alert rule that fires a webhook; failure injector built from Ankur's failure catalog. Done when injected failures appear in Grafana and fire the webhook.
+Revised after adding the knowledge layer (see docs/knowledge-design.md). Day 3 as first written held knowledge, actions, governance, cost, kill switch, adversarial tests and agent alerts, which was too much for one day. If the schedule must stay at four days, cut in this order: LangGraph port, then past incidents and ask_human, then the derived service map, then the later ablation arms. Never cut evals, the approval gate or the knowledge citation check.
 
-Day 2, agent core, gateway, read-only tools: model gateway on the Anthropic SDK; MCP server with query_logs and get_trace; Ankur writes the core loop (plan, call tool, observe, decide); strict Pydantic diagnosis output (root cause, evidence, confidence); OTel GenAI spans to Langfuse or Phoenix; agent metrics exported to Prometheus with an "AI health" Grafana dashboard. Done when an alert triggers an end-to-end diagnosis replayable in the trace viewer, and the agent's own cost and latency show on a Grafana dashboard.
+Day 1, platform and telemetry (done): scaffold FastAPI services, RabbitMQ, Docker Compose; OTel, Loki, Tempo, Prometheus, Grafana configs with one dashboard and an alert rule that fires a webhook; failure injector built from Ankur's failure catalog. Done when injected failures appear in Grafana and fire the webhook.
 
-Day 3, knowledge, actions, governance, cost: runbook ingestion and search_runbooks; service catalog and get_service_info; get_recent_changes; remove the "fault enabled" log lines from the simulator (they leak the answer to the agent) and emit neutral change events instead; replay_message (sandbox) and draft_pull_request (draft only, needs a GitHub token scoped to this repo, created on Day 3); approval gate, audit log, guardrails, cost and latency tracker, kill switch, adversarial guardrail tests, alert rules on the agent itself. Done when a proposed fix waits for approval, only an approved action executes, and the kill switch stops new diagnoses.
+Day 2, agent core, gateway, telemetry tools: model gateway on the Anthropic SDK; MCP server with query_logs, get_trace and query_metrics; Ankur writes the core loop (plan, call tool, observe, decide); strict Pydantic diagnosis output (root cause, evidence, confidence); alert trigger service; OTel GenAI spans to Phoenix; agent metrics exported to Prometheus with an "AI health" Grafana dashboard. Then the end-to-end run, which is also ablation arm A (telemetry only). Done when an alert triggers an end-to-end diagnosis replayable in the trace viewer, and the agent's own cost and latency show on a Grafana dashboard.
 
-Day 4, evals, tuning, publish: pytest eval harness and scorer from the labeled catalog (including confidence calibration and guardrail tests); baseline run, then an ablation (telemetry only vs telemetry plus knowledge tools) to measure what tribal knowledge is worth; tune prompts, tool descriptions, retrieval, rerun, capture before-and-after; optional LangGraph port (cut this first if behind, never cut evals or the approval gate); README (with a table mapping each control to OWASP LLM Top 10 / NIST AI RMF, and a "From POC to production" section), one-command setup, architecture diagram, 2 to 3 minute demo; publish repo and LinkedIn post.
+Day 3, knowledge layer: Postgres store, ingestion with lint and a knowledge version hash; knowledge/ folder for runbooks and service catalog; tools search_runbooks, get_runbook, get_service_info, get_contract, get_recent_changes; Diagnosis gains knowledge_refs and a citation check; simulator change: remove the "fault enabled" log lines (they leak the answer) and emit realistic change events plus distractor events; retrieval tests with golden queries. Ankur writes runbooks and service catalog entries, and can start before Day 3. Done when the agent cites a runbook and a catalog entry in a diagnosis and retrieval tests pass.
+
+Day 4, actions and governance: replay_message (sandbox) and draft_pull_request (draft only, needs a GitHub token scoped to this repo, created on Day 4); approval gate, audit log (including every knowledge lookup), guardrails, cost and latency tracker, kill switch, adversarial guardrail tests, alert rules on the agent itself. Stretch: search_past_incidents and ask_human with the outcome capture loop. Done when a proposed fix waits for approval, only an approved action executes, and the kill switch stops new diagnoses.
+
+Day 5, evals, tuning, publish: pytest eval harness and scorer from the labeled catalog (including confidence calibration and guardrail tests); baseline run, then the ablation across four arms (A telemetry only, B plus runbooks, C plus catalog, contracts and change events, D plus past incidents and ask_human) to measure what tribal knowledge is worth; tune prompts, tool descriptions, retrieval, rerun, capture before-and-after; optional LangGraph port (cut first if behind); README (with a table mapping each control to OWASP LLM Top 10 / NIST AI RMF, and a "From POC to production" section), one-command setup, architecture diagram, 2 to 3 minute demo; publish repo and LinkedIn post.
 
 ## Status (update this section as work progresses)
 
@@ -67,7 +71,10 @@ Day 4, evals, tuning, publish: pytest eval harness and scorer from the labeled c
 - [x] Claude Code installed and running in this repo
 - [x] Day 1 done: stack up, 8 placeholder failures fire and resolve alerts (pushed)
 - [ ] Ankur replaces placeholder `failures/catalog.yaml` with real failures
-- [ ] Day 2 started
+- [x] Day 2 built (pushed): gateway, MCP telemetry tools, schema, trigger service, tracing, AI health dashboard
+- [ ] Ankur writes the core loop (agent/loop.py) so tests/test_loop.py passes
+- [ ] Day 2 end-to-end run (ablation arm A, telemetry only)
+- [ ] Ankur writes runbooks (about 10 matching failures, 2 to 3 failures with none, about 5 distractors) and service catalog entries in knowledge/
 
 ## First task for Claude Code
 

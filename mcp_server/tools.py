@@ -28,7 +28,7 @@ class ToolError(Exception):
 
 
 def sanitize_log_text(text: str) -> str:
-    """Hook for Day 3 prompt-injection filtering of log content. Currently only caps length."""
+    """Hook for Day 4 prompt-injection filtering of log content. Currently only caps length."""
     text = " ".join(text.split())
     return text if len(text) <= MAX_MESSAGE_CHARS else text[:MAX_MESSAGE_CHARS] + "…"
 
