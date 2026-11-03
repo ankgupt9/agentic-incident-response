@@ -1,4 +1,4 @@
-"""Prompts. Tuned on Day 5 against the eval baseline; keep changes small and measured."""
+"""Prompts. Tuned on Day 4 against the eval baseline; keep changes small and measured."""
 
 SYSTEM_PROMPT = """You are an incident-response engineer investigating an alert in an order-processing system.
 

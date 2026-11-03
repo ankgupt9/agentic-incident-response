@@ -4,7 +4,7 @@ How the agent gets the system knowledge that an on-call engineer would otherwise
 
 | | |
 |---|---|
-| Status | Design. Nothing in this document is built yet. Build starts on Day 3 (see section 9). |
+| Status | Design. Nothing in this document is built yet. Build starts on Day 2, in parallel with the core loop (see section 9). |
 | Why it exists | Telemetry explains what happened. Knowledge explains why. See [solution-design.md](solution-design.md) section A1. |
 | Owner of content | Ankur (runbooks, service catalog). Claude Code builds the machinery. |
 
@@ -23,15 +23,15 @@ The design principle is: **turn tribal knowledge into governed, searchable, cita
 
 | ID | Source | Question it answers | Form | Tool | Phase |
 |---|---|---|---|---|---|
-| K1 | Runbooks | "How does the team diagnose and fix this symptom?" | Markdown with frontmatter, 15 to 20 files | `search_runbooks`, `get_runbook` | Day 3, core |
-| K2 | Service catalog | "What does this service do, depend on, and promise? What are its quirks?" | One YAML file per service and queue | `get_service_info` | Day 3, core |
-| K3 | Contracts | "What shape should this message or response have?" | JSON Schema for the order message, OpenAPI for each service (generated from the code) | `get_contract` | Day 3, core |
-| K4 | Change events | "What changed recently?" | Rows in Postgres, fed by the simulator in the shape of real change records | `get_recent_changes` | Day 3, core |
-| K5 | Past incidents | "Have we seen this before, and how did it end?" | Postgres rows, plus hand-written postmortems | `search_past_incidents` | Stretch, after the capture loop exists |
-| K6 | Human answers | "What does the person who knows this system say?" | Governed question to the on-call, answer stored | `ask_human` | Stretch, reuses the approval page |
-| K7 | Ownership and escalation | "Who owns this, who do I ask?" | Fields inside the K2 catalog | Part of `get_service_info`; used by K6 routing | Day 3 (data), stretch (routing) |
-| K8 | SLOs and alert intent | "Why does this alert fire at 20%, and what does it mean for the business?" | Fields inside the K2 catalog and alert annotations | Part of `get_service_info` | Day 3 |
-| K9 | Derived service map | "What actually calls what?" | Computed from traces in Tempo | Part of `get_service_info` (declared vs observed) | Stretch |
+| K1 | Runbooks | "How does the team diagnose and fix this symptom?" | Markdown with frontmatter, 15 to 20 files | `search_runbooks`, `get_runbook` | Day 2, core |
+| K2 | Service catalog | "What does this service do, depend on, and promise? What are its quirks?" | One YAML file per service and queue | `get_service_info` | Day 2, core |
+| K3 | Contracts | "What shape should this message or response have?" | JSON Schema for the order message, OpenAPI for each service (generated from the code) | `get_contract` | Day 2, core |
+| K4 | Change events | "What changed recently?" | Rows in Postgres, fed by the simulator in the shape of real change records | `get_recent_changes` | Day 2, core |
+| K5 | Past incidents | "Have we seen this before, and how did it end?" | Postgres rows, plus hand-written postmortems | `search_past_incidents` | Stretch, after the capture loop exists; first to cut |
+| K6 | Human answers | "What does the person who knows this system say?" | Governed question to the on-call, answer stored | `ask_human` | Stretch, reuses the approval page; first to cut |
+| K7 | Ownership and escalation | "Who owns this, who do I ask?" | Fields inside the K2 catalog | Part of `get_service_info`; used by K6 routing | Day 2 (data), stretch (routing) |
+| K8 | SLOs and alert intent | "Why does this alert fire at 20%, and what does it mean for the business?" | Fields inside the K2 catalog and alert annotations | Part of `get_service_info` | Day 2 |
+| K9 | Derived service map | "What actually calls what?" | Computed from traces in Tempo | Part of `get_service_info` (declared vs observed) | Stretch; first to cut |
 
 Telemetry (logs, traces, metrics) remains the source of live facts. The failure catalog (`failures/catalog.yaml`) is deliberately **not** a knowledge source: it holds the answers the evals score against, and exposing it would leak them.
 
@@ -231,26 +231,25 @@ Two changes make the knowledge sources realistic and keep the evals honest.
 
 A change feed makes some diagnoses easier. That is realistic, and the ablation (section 10) measures exactly how much easier.
 
-## 9. Revised build plan
+## 9. Build plan (four days)
 
-The knowledge layer adds real work. Day 3 as originally written (knowledge, actions, governance, cost, kill switch, adversarial tests, agent alerts) was too much for one day, so the plan becomes five days. The telemetry-only baseline runs **before** knowledge exists, which turns Day 2's end-to-end run into the first arm of the ablation.
+The knowledge layer is built inside Days 2 and 3, in parallel with work Ankur owns, rather than adding a day. The telemetry-only end-to-end run on Day 2 happens **before** the agent is given the knowledge tools, which makes it the first arm of the ablation. The simulator's answer-leaking log lines are removed first, because no baseline is valid while they exist.
 
 | Day | Theme | Work | Done when |
 |---|---|---|---|
 | 1 | Platform and telemetry | Built | Injected failures fire alerts (done) |
-| 2 | Agent core | Gateway, MCP telemetry tools, schema, trigger, tracing, dashboard (built). Ankur writes the loop. End-to-end run. **Baseline arm A: telemetry only.** | An alert produces a diagnosis in Phoenix and Grafana; arm A scored informally |
-| 3 | Knowledge layer | Postgres, ingestion, lint, versioning; K1 to K4 tools; `knowledge_refs` and citation check; simulator change events and leak removal; retrieval tests. Ankur writes runbooks and catalog entries (can start now, in parallel). | Agent cites a runbook and a catalog entry in a diagnosis; retrieval tests pass |
-| 4 | Actions and governance | `replay_message` (sandbox), `draft_pull_request` (draft), approval page, audit log (including knowledge lookups), guardrails, kill switch, cost tracker, adversarial tests, alert rules on the agent. Stretch: K5 past incidents, K6 `ask_human`. | A proposed fix waits for approval; only approved actions execute; the kill switch stops new diagnoses |
-| 5 | Evals and publish | Eval harness and scorer, ablation arms B to D, calibration, tuning and rerun, README with control mapping, demo, publish | Before-and-after numbers and the ablation chart captured; repo and post published |
+| 2 | Agent core and knowledge machinery | Built: gateway, MCP telemetry tools, schema, trigger, tracing, dashboard. Ankur: core loop, runbooks, catalog entries. Claude Code in parallel, in order: remove the fault-log leak and add change events with distractors; Postgres store, ingestion, lint, versioning; K1 to K4 tools; golden-query retrieval tests. Then the end-to-end run with knowledge tools off (**arm A**). | A diagnosis appears in Phoenix and on the AI Health dashboard; knowledge tools return the right entries on golden queries |
+| 3 | Knowledge integration, actions, governance | `knowledge_refs` and citation check, prompt guidance to consult knowledge; `replay_message` (sandbox), `draft_pull_request` (draft), approval page, audit log (including knowledge lookups), guardrails, kill switch, cost tracker, adversarial tests, alert rules on the agent | The agent cites a runbook and a catalog entry; a proposed fix waits for approval; only approved actions execute; the kill switch stops new diagnoses |
+| 4 | Evals and publish | Eval harness and scorer, two-arm ablation (A telemetry only, B plus knowledge), calibration, tuning and rerun, README with control mapping, demo, publish | Before-and-after numbers and the ablation result captured; repo and post published |
 
-If the schedule must stay at four days, the cut order is: LangGraph port (already optional), then K5 and K6, then K9, then the second ablation arms. Never cut evals, the approval gate or the knowledge citation check.
+Days 2 and 3 are heavy and depend on Ankur finishing the loop and the runbooks early. If behind, the cut order is: LangGraph port, then K5 and K6 (past incidents, `ask_human`), then K9 (derived service map). Never cut evals, the approval gate or the knowledge citation check. Arm B is one run with all of K1 to K4 on; splitting it into runbooks-only and catalog-plus-changes arms is a later refinement if time allows.
 
 ### Who does what
 
 | Task | Owner |
 |---|---|
 | Core loop | Ankur |
-| 15 to 20 runbooks and the service catalog entries | Ankur (can start before Day 3) |
+| 15 to 20 runbooks and the service catalog entries | Ankur (start now; needed by Day 2) |
 | Real failure catalog | Ankur |
 | Ingestion, lint, store, tools, schema change, simulator changes, tests | Claude Code |
 | Action tools and guardrails | Claude Code scaffolds, Ankur reviews every line |
@@ -271,7 +270,7 @@ The runbook set is designed so the evals can tell whether knowledge helps, not j
 | Check | How | What it tells us |
 |---|---|---|
 | Retrieval quality | Golden queries paired with the expected entry; recall at 3 | Whether search finds the right entry before the agent is involved |
-| Ablation | Same failures, four arms: **A** telemetry only; **B** plus runbooks; **C** plus catalog, contracts and change events; **D** plus past incidents and `ask_human` | What each source is worth in accuracy, cost and latency |
+| Ablation | Same failures, two arms: **A** telemetry only; **B** plus runbooks, catalog, contracts and change events. Optional refinements: split B into runbooks-only and catalog-plus-changes, and add an arm with past incidents and `ask_human` if those are built | What each source is worth in accuracy, cost and latency |
 | Citation precision | Share of cited ids that were retrieved and relevant | Whether the agent grounds claims in real entries |
 | Missing-knowledge behavior | Failures without a runbook | Whether the agent admits low confidence instead of forcing a match |
 | Stale-knowledge test | One deliberately outdated runbook | Whether the agent over-trusts it, and whether the review date helps |

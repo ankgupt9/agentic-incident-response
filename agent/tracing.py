@@ -44,7 +44,7 @@ class AgentTelemetry:
         self.tokens = meter.create_counter("agent_tokens", description="Tokens used, by type and model")
         self.cost = meter.create_counter("agent_cost_usd", description="Model spend in USD")
         self.tool_calls = meter.create_counter("agent_tool_calls", description="Tool calls, by tool and outcome")
-        self.guardrail_blocks = meter.create_counter("agent_guardrail_blocks", description="Actions blocked by guardrails (Day 4)")
+        self.guardrail_blocks = meter.create_counter("agent_guardrail_blocks", description="Actions blocked by guardrails (Day 3)")
 
     def content(self, text: str) -> str:
         return _clip(text) if self.capture_content else "[content capture disabled]"
