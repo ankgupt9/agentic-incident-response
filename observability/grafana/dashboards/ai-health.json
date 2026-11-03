@@ -1,0 +1,57 @@
+{
+  "uid": "ai-health",
+  "title": "AI Health (incident agent)",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Diagnoses (per 5m, by status)",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (status) (increase(agent_diagnoses_total[5m]))", "legendFormat": "{{status}}" }]
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Cost per diagnosis (USD, 15m window)",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 5 }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(increase(agent_cost_usd_total[15m])) / sum(increase(agent_diagnoses_total[15m]))", "legendFormat": "avg per diagnosis" },
+        { "refId": "B", "expr": "sum(increase(agent_cost_usd_total[15m]))", "legendFormat": "total spend" }
+      ]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Tokens (per 5m, by type)",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (type) (increase(agent_tokens_total[5m]))", "legendFormat": "{{type}}" }]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Model call latency (p50 / p95)",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(agent_model_call_duration_seconds_bucket[5m])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(agent_model_call_duration_seconds_bucket[5m])))", "legendFormat": "p95" }
+      ]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Tool calls (per 5m, by tool and outcome)",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (tool, outcome) (increase(agent_tool_calls_total[5m]))", "legendFormat": "{{tool}} {{outcome}}" }]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Diagnosis duration (p95)",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.95, sum by (le) (rate(agent_diagnosis_duration_seconds_bucket[15m])))", "legendFormat": "diagnosis p95" }
+      ]
+    }
+  ]
+}

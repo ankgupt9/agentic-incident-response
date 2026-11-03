@@ -9,6 +9,13 @@ contactPoints:
         settings:
           url: http://alert-receiver:8000/alerts
           httpMethod: POST
+      # The agent runs on the host during development (uvicorn agent.service:app --port 8004).
+      # If it is not running Grafana logs a failed notification; alert-receiver still records the alert.
+      - uid: agent-service
+        type: webhook
+        settings:
+          url: http://host.docker.internal:8004/alerts
+          httpMethod: POST
 
 policies:
   - orgId: 1

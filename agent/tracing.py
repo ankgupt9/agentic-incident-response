@@ -149,7 +149,8 @@ def setup_agent_telemetry() -> AgentTelemetry:
     """Real exporters: traces to the collector (-> Tempo) and Phoenix; metrics to the collector."""
     collector = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
     phoenix = os.getenv("PHOENIX_URL", "http://localhost:6006")
-    resource = Resource.create({"service.name": SERVICE})
+    # openinference.project.name groups the agent's traces into their own project in Phoenix.
+    resource = Resource.create({"service.name": SERVICE, "openinference.project.name": SERVICE})
     tracer_provider = TracerProvider(resource=resource)
     tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=f"{collector}/v1/traces")))
     tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=f"{phoenix}/v1/traces")))

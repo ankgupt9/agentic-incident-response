@@ -83,3 +83,17 @@ services:
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports: ["3000:3000"]
     depends_on: [prometheus, loki, tempo, alert-receiver]
+
+  # --- Agent observability ---
+  phoenix:
+    image: arizephoenix/phoenix:version-21.0.0
+    environment:
+      PHOENIX_WORKING_DIR: /mnt/data
+      # POC only: no login on the local trace viewer. Production would enable auth and use API keys.
+      PHOENIX_ENABLE_AUTH: "false"
+    volumes:
+      - phoenix-data:/mnt/data
+    ports: ["6006:6006"] # UI and OTLP/HTTP (/v1/traces); gRPC 4317 is not published (collector owns it)
+
+volumes:
+  phoenix-data:
