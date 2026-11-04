@@ -11,9 +11,9 @@ from aio_pika.abc import AbstractIncomingMessage
 from fastapi import FastAPI, HTTPException
 from opentelemetry import metrics
 
-from services.common.faults import FaultRegistry, mount_fault_admin
-from services.common.telemetry import instrument_app, setup_telemetry
-from services.pricing_service.catalog import get_price, price_order
+from simulator.common.faults import FaultRegistry, mount_fault_admin
+from simulator.common.telemetry import instrument_app, setup_telemetry
+from simulator.pricing_service.price_list import get_price, price_order
 
 SERVICE = "pricing-service"
 QUEUE = "orders"

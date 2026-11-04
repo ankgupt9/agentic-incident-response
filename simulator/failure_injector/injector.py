@@ -1,8 +1,8 @@
 """Failure injector CLI: reads failures/catalog.yaml and flips the fault switch on a service.
 
-    python -m services.failure_injector.injector list
-    python -m services.failure_injector.injector inject F03 [--duration 120]
-    python -m services.failure_injector.injector clear
+    python -m simulator.failure_injector.injector list
+    python -m simulator.failure_injector.injector inject F03 [--duration 120]
+    python -m simulator.failure_injector.injector clear
 """
 
 import argparse
@@ -41,7 +41,7 @@ class Failure(BaseModel):
     suggested_fix: str
 
 
-def load_catalog(path: Path = CATALOG_PATH) -> dict[str, Failure]:
+def load_failure_catalog(path: Path = CATALOG_PATH) -> dict[str, Failure]:
     raw = yaml.safe_load(path.read_text())
     failures = [Failure(**item) for item in raw["failures"]]
     ids = [f.id for f in failures]
@@ -72,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("clear")
     args = parser.parse_args(argv)
 
-    catalog = load_catalog()
+    catalog = load_failure_catalog()
     if args.cmd == "list":
         for f in catalog.values():
             print(f"{f.id}  {f.title:<32} -> {f.expected_alert}{'  [placeholder]' if f.placeholder else ''}")

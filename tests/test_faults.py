@@ -4,9 +4,9 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from services.order_service import main as order
-from services.pricing_service import main as pricing
-from services.pricing_service.catalog import price_order
+from simulator.order_service import main as order
+from simulator.pricing_service import main as pricing
+from simulator.pricing_service.price_list import price_order
 
 
 @pytest.fixture(autouse=True)

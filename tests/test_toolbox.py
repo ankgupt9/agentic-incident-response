@@ -1,5 +1,3 @@
-import sys
-
 from agent.toolbox import FakeToolbox, McpToolbox
 
 

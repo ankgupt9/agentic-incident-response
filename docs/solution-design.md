@@ -252,7 +252,7 @@ flowchart TB
 
     subgraph L3["Layer 3: Agent core (Python)"]
         direction LR
-        SVC["Trigger service"] --> LOOP["Core loop"] --> GW["Model gateway"]
+        SVC["Alert trigger"] --> LOOP["Core loop"] --> GW["Model gateway"]
     end
 
     CLAUDE{{"Claude API"}}
@@ -301,13 +301,13 @@ flowchart LR
     CLAUDE{{"Claude API<br/>(internet)"}}
 
     subgraph HOST["Developer machine (macOS)"]
-        AG["Agent service<br/>uvicorn :8004"]
+        AG["Alert trigger<br/>uvicorn :8004"]
         MCPP["MCP server<br/>(stdio subprocess)"]
         CLI["pytest, load script,<br/>failure injector CLI"]
 
         subgraph DC["Docker Compose network"]
             direction TB
-            SVCS["order-service :8001<br/>pricing-service :8002<br/>alert-receiver :8003"]
+            SVCS["order-service :8001<br/>pricing-service :8002<br/>alert-recorder :8003"]
             MQ["RabbitMQ :5672 / :15672"]
             COL["OTel Collector<br/>:4317 / :4318"]
             BE["Loki :3100<br/>Tempo :3200<br/>Prometheus :9090"]
@@ -334,7 +334,7 @@ sequenceDiagram
     participant S as order / pricing services
     participant O as Collector + Loki/Tempo/Prometheus
     participant G as Grafana
-    participant A as Trigger service
+    participant A as Alert trigger
     participant L as Core loop
     participant M as Claude (via gateway)
     participant T as MCP tools
@@ -403,7 +403,7 @@ Logs carry the trace id, so a log line links to its trace. This is what lets the
 | PricingConsumerErrorRateHigh | More than 20% of consumed orders fail |
 | OrderQueueBacklog | More than 20 messages waiting in the queue |
 
-A Grafana contact point sends each alert to two webhooks: the agent service, and a small recorder (`alert-receiver`) that the verification script reads.
+A Grafana contact point (`incident-notifications`) sends each alert to two webhooks: the alert trigger (the agent's entry point), and a small recorder (`alert-recorder`) that the verification script reads.
 
 ## B6. Agent core (Layer 3)
 
@@ -441,12 +441,12 @@ stateDiagram-v2
 
 `tests/test_loop.py` holds ten scenarios the loop must satisfy: happy path, parallel tool calls answered in one message, tool errors passed to the model, unknown tools, step-cap forcing, failure after the cap, one retry on a bad diagnosis, failure after two, cost summing, and gateway failure. The loop in `agent/loop.py` passes all ten, and six more tests cover a text-only reply, a bad submission sent alongside another tool call, a tool that raises, a tool requested after the cap, and invalid `max_steps`.
 
-### Trigger service
+### Alert trigger
 
-`agent/service.py` (FastAPI, port 8004, run with `uvicorn agent.service:app --port 8004`).
+`agent/trigger.py` (FastAPI, port 8004, run with `uvicorn agent.trigger:app --port 8004`).
 
 - `POST /alerts` reads Grafana's payload, ignores resolved alerts, and starts one background diagnosis per firing alert.
-- The same alert is not re-diagnosed within 10 minutes. At most 2 diagnoses run at once. 200 records are kept, in memory (durable storage arrives with Postgres on Day 2, and the audit log follows on Day 3).
+- The same alert is not re-diagnosed within 10 minutes. At most 2 diagnoses run at once. 200 diagnosis jobs are kept, in memory (durable storage arrives with Postgres on Day 2, and the audit log follows on Day 3).
 - A crash in a diagnosis is recorded as a failed result, never an error to Grafana.
 - `GET /diagnoses` and `GET /diagnoses/{id}` return results.
 
@@ -630,13 +630,13 @@ An ablation compares telemetry only against telemetry plus knowledge tools, whic
 
 | Area | Status | Where | Tests |
 |---|---|---|---|
-| Order, pricing services, queue | Built | `services/` | 23 |
+| Order, pricing services, queue | Built | `simulator/` | 23 |
 | Telemetry stack, dashboard, alerts | Built | `observability/`, `docker-compose.yml` | verified by script |
-| Failure injector and catalog | Built (placeholder catalog) | `services/failure_injector/`, `failures/` | included above |
+| Failure injector and catalog | Built (placeholder catalog) | `simulator/failure_injector/`, `failures/` | included above |
 | Model gateway | Built | `agent/gateway.py`, `agent/anthropic_gateway.py`, `agent/config.py` | 7 |
 | MCP server and tools | Built | `mcp_server/`, `agent/toolbox.py` | 12 |
 | Diagnosis schema | Built | `agent/schemas.py` | 9 |
-| Trigger service | Built | `agent/service.py` | 5 |
+| Alert trigger | Built | `agent/trigger.py` | 5 |
 | Agent tracing and metrics | Built | `agent/tracing.py`, `agent/runner.py` | 5 |
 | Phoenix and AI Health dashboard | Built | `docker-compose.yml`, `ai-health.json` | checked on live stack |
 | Core loop | Built; Ankur to review | `agent/loop.py`, `docs/loop-checklist.md` | 16 |
@@ -655,8 +655,8 @@ Test totals: 77 passing, 0 skipped.
 | 6006 | Phoenix | Trace viewer and OTLP/HTTP intake; auth off (POC) |
 | 8001 | order-service | `POST /orders`, `/admin/faults` |
 | 8002 | pricing-service | `/quote/{sku}`, `/admin/faults` |
-| 8003 | alert-receiver | Records alerts for the verification script |
-| 8004 | agent service | On the host, not in Compose |
+| 8003 | alert-recorder | Records alerts for the verification script |
+| 8004 | alert trigger (`agent/trigger.py`) | On the host, not in Compose |
 | 3100, 3200, 9090 | Loki, Tempo, Prometheus | Queried by the MCP tools |
 | 4317, 4318 | OTel Collector | OTLP in |
 | 5672, 15672 | RabbitMQ | Broker and management UI |
@@ -677,10 +677,10 @@ docker compose up -d --build
 .venv/bin/python -m pytest tests -q
 ```
 
-Run the agent service on the host:
+Run the alert trigger on the host:
 
 ```bash
-.venv/bin/uvicorn agent.service:app --port 8004
+.venv/bin/uvicorn agent.trigger:app --port 8004
 ```
 
 Generate traffic and inject a failure (separate terminals):
@@ -690,7 +690,7 @@ PYTHONPATH=. .venv/bin/python scripts/load.py --rps 5 --seconds 180
 ```
 
 ```bash
-.venv/bin/python -m services.failure_injector.injector inject F03 --duration 120
+.venv/bin/python -m simulator.failure_injector.injector inject F03 --duration 120
 ```
 
 Then open Grafana (<http://localhost:3000>), Phoenix (<http://localhost:6006>) and `GET http://localhost:8004/diagnoses`.
@@ -709,7 +709,7 @@ What this proof of concept deliberately simplifies:
 | Alerts | Fixed thresholds | SLO-based, multi-window alerting |
 | Telemetry volume | Everything sampled | Sampling and cost controls |
 | Agent hosting | On the host | Containerized, autoscaled, with the kill switch behind access control |
-| Agent state | In-memory records | Durable store with the audit log |
+| Agent state | In-memory diagnosis jobs | Durable store with the audit log |
 
 ## C6. Risks and open questions
 

@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 
-from services.pricing_service.catalog import price_order
-from services.pricing_service.main import app, handle_message
+from simulator.pricing_service.price_list import price_order
+from simulator.pricing_service.main import app, handle_message
 
 
 def test_quote_known_sku():

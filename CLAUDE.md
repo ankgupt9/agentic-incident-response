@@ -36,6 +36,18 @@ Two-sided story: AI that monitors software, and a platform that governs and moni
 
 Flow: failures become telemetry, a Grafana alert wakes the agent, the agent calls Claude through the gateway and uses MCP tools to diagnose, any action goes through guardrails and approval, everything is traced and audit-logged, evals replay labeled failures.
 
+## Naming conventions (keep names unambiguous)
+
+A name must say what a thing is and must not be reused for something else. Check this before adding any file, class or config entry.
+
+- `simulator/`: the simulated enterprise (order, pricing, alert recorder, failure injector). Not part of the agent.
+- `agent/trigger.py`: the alert trigger, the agent's only entry point. `agent/` holds the agent; `simulator/` holds what it watches.
+- `simulator/alert_recorder`: a test fixture that records alerts. It never talks to the agent.
+- Grafana contact point `incident-notifications`, with receivers `alert-recorder` and `agent-trigger`.
+- `DiagnosisJob` (one queued or running diagnosis in the trigger), `DiagnosisResult` (what the loop returns), `Diagnosis` (what the model submits).
+- "failure catalog" is `failures/catalog.yaml`; "service catalog" is the knowledge layer in `knowledge/services/`. Say which one. `MODEL_PRICES` is token pricing; `SKU_PRICES` is the simulated price list.
+- `TelemetryBackends` are Loki, Tempo and Prometheus. "Gateway" always means the model gateway.
+
 ## Stack
 
 Python, FastAPI, RabbitMQ, OpenTelemetry Collector, Loki, Tempo, Prometheus, Grafana, PostgreSQL, MCP Python SDK, Anthropic Python SDK, Langfuse or Arize Phoenix, pytest, Docker Compose. Custom agent loop first; LangGraph port is a stretch goal. No Ollama or local models: Claude only.

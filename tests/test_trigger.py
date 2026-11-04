@@ -3,7 +3,7 @@ import asyncio
 import httpx
 
 from agent.schemas import DiagnosisResult
-from agent.service import create_app, parse_grafana
+from agent.trigger import create_app, parse_grafana
 from tests.test_schemas import VALID
 from agent.schemas import Diagnosis
 
@@ -69,8 +69,8 @@ async def test_runner_crash_is_recorded_as_failed_not_raised():
         await drain(app)
         item = (await c.get("/diagnoses")).json()[0]
     assert item["status"] == "failed"
-    record = next(iter(app.state.records.values()))
-    assert "NotImplementedError" in record.result.error
+    job = next(iter(app.state.jobs.values()))
+    assert "NotImplementedError" in job.result.error
 
 
 async def test_unknown_diagnosis_is_404():

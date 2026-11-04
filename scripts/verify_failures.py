@@ -10,10 +10,10 @@ import time
 
 import httpx
 
-from services.failure_injector.injector import clear_all, inject, load_catalog
+from simulator.failure_injector.injector import clear_all, inject, load_failure_catalog
 
 ORDER_URL = "http://localhost:8001/orders"
-RECEIVER = "http://localhost:8003/alerts/recent"
+RECORDER_URL = "http://localhost:8003/alerts/recent"
 FIRE_TIMEOUT, RESOLVE_TIMEOUT = 180, 300
 SKUS = ["SKU-1001", "SKU-1002", "SKU-1003", "SKU-1004"]
 
@@ -33,7 +33,7 @@ def load_worker(stop: threading.Event) -> None:
 
 def statuses(client: httpx.Client, alertname: str) -> set[str]:
     seen = set()
-    for payload in client.get(RECEIVER).json():
+    for payload in client.get(RECORDER_URL).json():
         for alert in payload["alerts"]:
             if alert["labels"]["alertname"] == alertname:
                 seen.add(alert["status"])
@@ -50,7 +50,7 @@ def wait_for(client: httpx.Client, alertname: str, status: str, timeout: float) 
 
 
 def main() -> int:
-    catalog = load_catalog()
+    catalog = load_failure_catalog()
     ids = sys.argv[1:] or list(catalog)
     stop = threading.Event()
     workers = [threading.Thread(target=load_worker, args=(stop,), daemon=True) for _ in range(6)]
@@ -62,7 +62,7 @@ def main() -> int:
             for fid in ids:
                 failure = catalog[fid]
                 clear_all(client)
-                client.delete(RECEIVER)
+                client.delete(RECORDER_URL)
                 inject(failure, client)
                 fired = wait_for(client, failure.expected_alert, "firing", FIRE_TIMEOUT)
                 clear_all(client)

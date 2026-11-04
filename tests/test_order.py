@@ -2,7 +2,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from services.order_service.main import app
+from simulator.order_service.main import app
 
 ORDER = {"sku": "SKU-1001", "quantity": 2, "customer_id": "c1"}
 

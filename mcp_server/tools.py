@@ -11,7 +11,7 @@ import re
 import time
 from collections import OrderedDict
 
-from mcp_server.backends import Backends
+from mcp_server.telemetry_backends import TelemetryBackends
 
 MAX_LOG_LIMIT = 100
 MAX_MESSAGE_CHARS = 300
@@ -56,7 +56,7 @@ def _clamp(value: int, low: int, high: int) -> int:
 
 
 async def query_logs(
-    b: Backends,
+    b: TelemetryBackends,
     service: str | None = None,
     level: str | None = None,
     contains: str | None = None,
@@ -115,7 +115,7 @@ def _attr(attributes: list[dict], key: str):
     return None
 
 
-async def get_trace(b: Backends, trace_id: str) -> str:
+async def get_trace(b: TelemetryBackends, trace_id: str) -> str:
     """Fetch one trace: spans in time order with service, duration, status and any exception."""
     trace_id = trace_id.strip().lower()
     if not TRACE_ID_RE.match(trace_id):
@@ -165,7 +165,7 @@ async def get_trace(b: Backends, trace_id: str) -> str:
     return "\n".join(rows)
 
 
-async def query_metrics(b: Backends, query: str, minutes: int = 15) -> str:
+async def query_metrics(b: TelemetryBackends, query: str, minutes: int = 15) -> str:
     """Run a PromQL expression over a recent window; each series is summarized (last, min, max)."""
     query = query.strip()
     if not query or len(query) > 500:

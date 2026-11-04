@@ -1,7 +1,7 @@
 x-service: &service
   build:
     context: .
-    dockerfile: services/Dockerfile
+    dockerfile: simulator/Dockerfile
   environment: &service-env
     OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
@@ -16,7 +16,7 @@ services:
   # --- Simulated enterprise ---
   order-service:
     <<: *service
-    command: uvicorn services.order_service.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn simulator.order_service.main:app --host 0.0.0.0 --port 8000
     environment:
       <<: *service-env
       PRICING_URL: http://pricing-service:8000
@@ -24,12 +24,12 @@ services:
 
   pricing-service:
     <<: *service
-    command: uvicorn services.pricing_service.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn simulator.pricing_service.main:app --host 0.0.0.0 --port 8000
     ports: ["8002:8000"]
 
-  alert-receiver:
+  alert-recorder:
     <<: *service
-    command: uvicorn services.alert_receiver.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn simulator.alert_recorder.main:app --host 0.0.0.0 --port 8000
     ports: ["8003:8000"]
 
   rabbitmq:
@@ -82,7 +82,7 @@ services:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports: ["3000:3000"]
-    depends_on: [prometheus, loki, tempo, alert-receiver]
+    depends_on: [prometheus, loki, tempo, alert-recorder]
 
   # --- Agent observability ---
   phoenix:

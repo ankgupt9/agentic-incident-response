@@ -4,7 +4,7 @@
 # the Day 4 eval scorer key on, so keep the structure when rewriting entries.
 #
 # fault.service: order-service | pricing-service
-# fault.name:    a switch implemented in that service (see services/*/main.py)
+# fault.name:    a switch implemented in that service (see simulator/*/main.py)
 
 failures:
   - id: F01

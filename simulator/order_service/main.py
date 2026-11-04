@@ -13,8 +13,8 @@ from fastapi import FastAPI, HTTPException, Request
 from opentelemetry import metrics
 from pydantic import BaseModel, Field
 
-from services.common.faults import FaultRegistry, mount_fault_admin
-from services.common.telemetry import instrument_app, setup_telemetry
+from simulator.common.faults import FaultRegistry, mount_fault_admin
+from simulator.common.telemetry import instrument_app, setup_telemetry
 
 SERVICE = "order-service"
 QUEUE = "orders"

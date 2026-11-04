@@ -9,7 +9,7 @@ import dataclasses
 
 import pytest
 
-from agent.gateway import FakeGateway, GatewayError, Usage, text_response, tool_use_response
+from agent.gateway import FakeGateway, Usage, text_response, tool_use_response
 from agent.loop import run_diagnosis
 from agent.schemas import Alert
 from agent.toolbox import FakeToolbox

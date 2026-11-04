@@ -7,7 +7,7 @@ import httpx
 
 
 @dataclass
-class Backends:
+class TelemetryBackends:
     loki_url: str = field(default_factory=lambda: os.getenv("LOKI_URL", "http://localhost:3100"))
     tempo_url: str = field(default_factory=lambda: os.getenv("TEMPO_URL", "http://localhost:3200"))
     prometheus_url: str = field(default_factory=lambda: os.getenv("PROMETHEUS_URL", "http://localhost:9090"))

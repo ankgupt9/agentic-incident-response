@@ -30,7 +30,7 @@ class ModelPrice:
 
 
 # Prices as of 2026-10. Unknown models raise on purpose: a silent $0 would corrupt cost tracking.
-PRICES: dict[str, ModelPrice] = {
+MODEL_PRICES: dict[str, ModelPrice] = {
     "claude-haiku-5-5": ModelPrice(0.10, 0.50, 100_000, 0.50, 2.50),
     "claude-sonnet-5-5": ModelPrice(2.00, 10.00),
     "claude-opus-5-5": ModelPrice(4.00, 20.00),
@@ -38,7 +38,7 @@ PRICES: dict[str, ModelPrice] = {
 
 
 def cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
-    price = PRICES[model]
+    price = MODEL_PRICES[model]
     if price.long_threshold is not None and input_tokens > price.long_threshold:
         in_rate, out_rate = price.long_input, price.long_output
     else:

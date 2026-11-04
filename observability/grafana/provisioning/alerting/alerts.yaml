@@ -2,16 +2,16 @@ apiVersion: 1
 
 contactPoints:
   - orgId: 1
-    name: agent-webhook
+    name: incident-notifications
     receivers:
-      - uid: agent-webhook
+      - uid: alert-recorder
         type: webhook
         settings:
-          url: http://alert-receiver:8000/alerts
+          url: http://alert-recorder:8000/alerts
           httpMethod: POST
-      # The agent runs on the host during development (uvicorn agent.service:app --port 8004).
-      # If it is not running Grafana logs a failed notification; alert-receiver still records the alert.
-      - uid: agent-service
+      # The agent runs on the host during development (uvicorn agent.trigger:app --port 8004).
+      # If it is not running Grafana logs a failed notification; alert-recorder still records the alert.
+      - uid: agent-trigger
         type: webhook
         settings:
           url: http://host.docker.internal:8004/alerts
@@ -19,7 +19,7 @@ contactPoints:
 
 policies:
   - orgId: 1
-    receiver: agent-webhook
+    receiver: incident-notifications
     group_by: ["alertname"]
     group_wait: 5s
     group_interval: 30s

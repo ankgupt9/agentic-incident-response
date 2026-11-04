@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from services.alert_receiver.main import app
+from simulator.alert_recorder.main import app
 
 PAYLOAD = {"alerts": [{"status": "firing", "labels": {"alertname": "OrderSubmitErrorRateHigh"}}]}
 

@@ -8,12 +8,12 @@ from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
 from mcp_server import tools
-from mcp_server.backends import Backends
+from mcp_server.telemetry_backends import TelemetryBackends
 from mcp_server.tools import ToolError
 
 
-def backends(handler) -> Backends:
-    return Backends(http=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+def telemetry_backends(handler) -> TelemetryBackends:
+    return TelemetryBackends(http=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
 
 
 def loki_payload(*lines: tuple[str, str, str, str]) -> dict:
@@ -46,7 +46,7 @@ async def test_query_logs_collapses_repeats_and_keeps_trace_id():
             ("pricing-service", "warn", "", "quote requested for unknown sku=SKU-9"),
         ))
 
-    out = await tools.query_logs(backends(handler), service="order-service", level="error", minutes=5, limit=500)
+    out = await tools.query_logs(telemetry_backends(handler), service="order-service", level="error", minutes=5, limit=500)
     assert seen["limit"] == "100"  # clamped
     assert "3 lines, 2 distinct" in out
     assert "(x2)" in out and "trace=" + "a" * 32 in out
@@ -55,15 +55,15 @@ async def test_query_logs_collapses_repeats_and_keeps_trace_id():
 
 async def test_query_logs_truncates_long_messages_and_handles_empty():
     long_line = "x" * 5000
-    out = await tools.query_logs(backends(lambda r: httpx.Response(200, json=loki_payload(("s", "info", "", long_line)))))
+    out = await tools.query_logs(telemetry_backends(lambda r: httpx.Response(200, json=loki_payload(("s", "info", "", long_line)))))
     assert len(out) < 800
-    empty = await tools.query_logs(backends(lambda r: httpx.Response(200, json=loki_payload())))
+    empty = await tools.query_logs(telemetry_backends(lambda r: httpx.Response(200, json=loki_payload())))
     assert "no matching logs" in empty
 
 
 async def test_query_logs_backend_failure_becomes_tool_error():
     with pytest.raises(ToolError, match="Loki query failed"):
-        await tools.query_logs(backends(lambda r: httpx.Response(503)))
+        await tools.query_logs(telemetry_backends(lambda r: httpx.Response(503)))
 
 
 def _id(raw: bytes) -> str:
@@ -87,7 +87,7 @@ def tempo_payload() -> dict:
 
 
 async def test_get_trace_renders_spans_errors_and_exceptions():
-    out = await tools.get_trace(backends(lambda r: httpx.Response(200, json=tempo_payload())), "a" * 32)
+    out = await tools.get_trace(telemetry_backends(lambda r: httpx.Response(200, json=tempo_payload())), "a" * 32)
     assert "2 spans, 1 with errors" in out
     assert "ERROR order-service POST /orders" in out
     assert "exception=AMQPConnectionError: broker lost" in out
@@ -95,8 +95,8 @@ async def test_get_trace_renders_spans_errors_and_exceptions():
 
 async def test_get_trace_validates_id_and_handles_missing():
     with pytest.raises(ToolError):
-        await tools.get_trace(backends(lambda r: httpx.Response(200)), "../etc/passwd")
-    out = await tools.get_trace(backends(lambda r: httpx.Response(404)), "a" * 32)
+        await tools.get_trace(telemetry_backends(lambda r: httpx.Response(200)), "../etc/passwd")
+    out = await tools.get_trace(telemetry_backends(lambda r: httpx.Response(404)), "a" * 32)
     assert "not found" in out
 
 
@@ -105,17 +105,17 @@ async def test_query_metrics_summarizes_series():
         {"metric": {"status": "error"}, "values": [[1, "0"], [2, "0.5"], [3, "0.9"]]},
         {"metric": {"status": "ok"}, "values": [[1, "1"], [2, "NaN"], [3, "1"]]},
     ]}}
-    out = await tools.query_metrics(backends(lambda r: httpx.Response(200, json=body)), "rate(x[1m])", 5)
+    out = await tools.query_metrics(telemetry_backends(lambda r: httpx.Response(200, json=body)), "rate(x[1m])", 5)
     assert "status=error: last=0.9 min=0 max=0.9 first=0" in out
     assert "status=ok: last=1 min=1 max=1" in out
 
 
 async def test_query_metrics_rejects_bad_input_and_prometheus_errors():
     with pytest.raises(ToolError):
-        await tools.query_metrics(backends(lambda r: httpx.Response(200)), "x" * 501)
+        await tools.query_metrics(telemetry_backends(lambda r: httpx.Response(200)), "x" * 501)
     bad = httpx.Response(400, json={"status": "error", "error": "parse error"})
     with pytest.raises(ToolError, match="parse error"):
-        await tools.query_metrics(backends(lambda r: bad), "((")
+        await tools.query_metrics(telemetry_backends(lambda r: bad), "((")
 
 
 async def test_mcp_server_lists_tools_and_reports_errors_over_stdio():
@@ -138,6 +138,6 @@ def _stack_up() -> bool:
 
 @pytest.mark.skipif(not _stack_up(), reason="observability stack not running")
 async def test_live_tools_against_the_local_stack():
-    b = Backends()
+    b = TelemetryBackends()
     assert "window: 15m" in await tools.query_logs(b, minutes=15, limit=5)
     assert "window: 5m" in await tools.query_metrics(b, "sum(rate(orders_submitted_total[1m]))", 5)

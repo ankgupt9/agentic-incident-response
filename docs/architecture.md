@@ -24,7 +24,7 @@ flowchart TB
 
     subgraph L3["Layer 3: Agent core (Python)"]
         direction LR
-        SVC["Trigger service"] --> LOOP["Core loop"] --> GW["Model gateway"]
+        SVC["Alert trigger"] --> LOOP["Core loop"] --> GW["Model gateway"]
     end
 
     CLAUDE{{"Claude API"}}
@@ -75,7 +75,7 @@ sequenceDiagram
     participant S as order / pricing services
     participant O as Collector + Loki/Tempo/Prometheus
     participant G as Grafana
-    participant A as Trigger service
+    participant A as Alert trigger
     participant L as Core loop
     participant M as Claude (via gateway)
     participant T as MCP tools
@@ -126,8 +126,8 @@ flowchart LR
 
 | Layer | Code and config |
 |---|---|
-| 1. Simulated enterprise | `services/`, `failures/catalog.yaml`, `docker-compose.yml` |
+| 1. Simulated enterprise | `simulator/`, `failures/catalog.yaml`, `docker-compose.yml` |
 | 2. Platform observability | `observability/` |
-| 3. Agent core | `agent/gateway.py`, `agent/anthropic_gateway.py`, `agent/loop.py`, `agent/service.py`, `agent/runner.py` |
+| 3. Agent core | `agent/gateway.py`, `agent/anthropic_gateway.py`, `agent/loop.py`, `agent/trigger.py`, `agent/runner.py` |
 | 4. MCP tools | `mcp_server/`, `agent/toolbox.py` |
 | 6. Agent observability | `agent/tracing.py`, `observability/grafana/dashboards/ai-health.json` |

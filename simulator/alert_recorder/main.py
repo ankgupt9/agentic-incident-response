@@ -1,13 +1,17 @@
-"""Stub for the Day 2 agent: receives Grafana alert webhooks and logs them."""
+"""Alert recorder: a test fixture that keeps a copy of every Grafana alert webhook.
+
+It does not talk to the agent. The agent gets alerts from agent/trigger.py. This service lets
+scripts/verify_failures.py check that an injected failure fired (and later resolved) an alert.
+"""
 
 import logging
 from collections import deque
 
 from fastapi import FastAPI, Request
 
-from services.common.telemetry import setup_telemetry
+from simulator.common.telemetry import setup_telemetry
 
-SERVICE = "alert-receiver"
+SERVICE = "alert-recorder"
 setup_telemetry(SERVICE)
 logger = logging.getLogger(SERVICE)
 

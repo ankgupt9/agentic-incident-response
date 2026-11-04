@@ -1,6 +1,6 @@
 """Static price list for the simulated pricing service."""
 
-PRICES: dict[str, float] = {
+SKU_PRICES: dict[str, float] = {
     "SKU-1001": 19.99,
     "SKU-1002": 49.50,
     "SKU-1003": 5.25,
@@ -10,7 +10,7 @@ PRICES: dict[str, float] = {
 
 def get_price(sku: str) -> float:
     try:
-        return PRICES[sku]
+        return SKU_PRICES[sku]
     except KeyError:
         raise KeyError(f"unknown sku {sku}") from None
 

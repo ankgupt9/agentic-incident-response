@@ -1,6 +1,7 @@
-"""Alert trigger: receives Grafana webhooks and runs a diagnosis per firing alert.
+"""Alert trigger: the agent's entry point. Receives Grafana webhooks and runs one diagnosis job
+per firing alert.
 
-Run: uvicorn agent.service:app --port 8004
+Run: uvicorn agent.trigger:app --port 8004
 """
 
 import asyncio
@@ -12,18 +13,18 @@ import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from agent.runner import Runner
 from agent.schemas import Alert, DiagnosisResult
 
-logger = logging.getLogger("agent.service")
+logger = logging.getLogger("agent.trigger")
 DEDUPE_WINDOW_S = 600
-MAX_RECORDS = 200
+MAX_JOBS = 200
 MAX_CONCURRENT = 2
 
 
-class DiagnosisRecord(BaseModel):
+class DiagnosisJob(BaseModel):
     id: str
     fingerprint: str
     created_at: float
@@ -52,7 +53,7 @@ def parse_grafana(payload: dict) -> list[tuple[str, Alert]]:
 
 
 def create_app(runner: Runner | None = None) -> FastAPI:
-    records: dict[str, DiagnosisRecord] = {}
+    jobs: dict[str, DiagnosisJob] = {}
     tasks: set[asyncio.Task] = set()
     slots = asyncio.Semaphore(MAX_CONCURRENT)
 
@@ -66,21 +67,21 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         for t in tasks:
             t.cancel()
 
-    app = FastAPI(title="incident-agent", lifespan=lifespan)
+    app = FastAPI(title="agent-trigger", lifespan=lifespan)
     app.state.runner = runner
-    app.state.records = records
+    app.state.jobs = jobs
     app.state.tasks = tasks
 
-    async def execute(record: DiagnosisRecord) -> None:
+    async def execute(job: DiagnosisJob) -> None:
         async with slots:
-            record.state = "running"
+            job.state = "running"
             try:
-                record.result = await app.state.runner(record.alert)
+                job.result = await app.state.runner(job.alert)
             except Exception as exc:
-                logger.exception("diagnosis crashed id=%s", record.id)
-                record.result = DiagnosisResult(alert=record.alert, status="failed", error=f"{type(exc).__name__}: {exc}")
-            record.state = "done"
-            logger.info("diagnosis done id=%s alert=%s status=%s", record.id, record.alert.name, record.result.status)
+                logger.exception("diagnosis crashed id=%s", job.id)
+                job.result = DiagnosisResult(alert=job.alert, status="failed", error=f"{type(exc).__name__}: {exc}")
+            job.state = "done"
+            logger.info("diagnosis done id=%s alert=%s status=%s", job.id, job.alert.name, job.result.status)
 
     @app.get("/health")
     async def health() -> dict:
@@ -91,18 +92,18 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         started, skipped = [], 0
         now = time.time()
         for fingerprint, alert in parse_grafana(await request.json()):
-            recent = any(r.fingerprint == fingerprint and now - r.created_at < DEDUPE_WINDOW_S for r in records.values())
+            recent = any(r.fingerprint == fingerprint and now - r.created_at < DEDUPE_WINDOW_S for r in jobs.values())
             if recent:
                 skipped += 1
                 continue
-            record = DiagnosisRecord(id=uuid.uuid4().hex[:12], fingerprint=fingerprint, created_at=now, alert=alert)
-            records[record.id] = record
-            while len(records) > MAX_RECORDS:
-                records.pop(next(iter(records)))
-            task = asyncio.create_task(execute(record))
+            job = DiagnosisJob(id=uuid.uuid4().hex[:12], fingerprint=fingerprint, created_at=now, alert=alert)
+            jobs[job.id] = job
+            while len(jobs) > MAX_JOBS:
+                jobs.pop(next(iter(jobs)))
+            task = asyncio.create_task(execute(job))
             tasks.add(task)
             task.add_done_callback(tasks.discard)
-            started.append(record.id)
+            started.append(job.id)
         return {"started": started, "skipped_duplicates": skipped}
 
     @app.get("/diagnoses")
@@ -110,14 +111,14 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         return [
             {"id": r.id, "alert": r.alert.name, "state": r.state, "status": r.result.status if r.result else None,
              "root_cause": r.result.diagnosis.root_cause if r.result and r.result.diagnosis else None}
-            for r in reversed(records.values())
+            for r in reversed(jobs.values())
         ]
 
     @app.get("/diagnoses/{diagnosis_id}")
-    async def get_diagnosis(diagnosis_id: str) -> DiagnosisRecord:
-        if diagnosis_id not in records:
+    async def get_diagnosis(diagnosis_id: str) -> DiagnosisJob:
+        if diagnosis_id not in jobs:
             raise HTTPException(status_code=404, detail="unknown diagnosis")
-        return records[diagnosis_id]
+        return jobs[diagnosis_id]
 
     return app
 
