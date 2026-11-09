@@ -36,7 +36,7 @@ The first run was honest about its uncertainty: a wrong-or-incomplete answer wit
 
 ## Full eval, run 1 (2026-11-09): invalidated by infrastructure failures
 
-First full run of `python -m evals.run`: 8 failures, 3 repeats, arms A and B, plus the prompt-injection scenario and the governance suite. The headline looked bad (arm A 38% correct, arm B 25%), but **24 of the 48 runs never reached the model**: `model call failed: connection error`, almost always on the first call, and concentrated in whole scenarios (F02 to F05 lost all six runs). Both arms were hit equally. I could not reproduce it afterwards (12 concurrent calls and a call after a 150-second idle gap all succeeded), so I attribute it to a transient network problem on the machine running the eval, not to the agent or the harness's concurrency.
+First full run of `python -m evals.run`: 8 failures, 3 repeats, arms A and B, plus the prompt-injection scenario and the governance suite. The headline looked bad (arm A 38% correct, arm B 25%), but **24 of the 48 runs never reached the model**: `model call failed: connection error`, almost always on the first call, and concentrated in whole scenarios (F02 to F05 lost all six runs). Both arms were hit equally. I could not reproduce it afterwards (12 concurrent calls and a call after a 150-second idle gap all succeeded). Run 2 later showed the likely cause: the Mac running the eval was entering Maintenance Sleep, which freezes the harness and leaves stale network connections that surface as `connection error` (see below). It was not the agent or the harness's concurrency.
 
 The lesson is about method: **an infrastructure failure must not be scored as a wrong diagnosis.** Counting those 24 runs as "incorrect" made both arms look far worse than they were. Among the runs that did reach the model, arm A completed 10 and got 9 right, and arm B completed 7 and got 6 right, which is far too few to compare the arms.
 
@@ -55,3 +55,16 @@ Fixes made before re-running:
 | Leaked markup failing runs | The loop trims the field at the first leaked marker (when real text precedes it), records the repair on the result, and the report counts repairs. A field with nothing before the leak is still rejected. |
 | Starting a 30-minute run into an outage | A preflight call aborts the run immediately if the API is unreachable. |
 | Hiding the completion rate inside accuracy | The report now shows the completion rate and accuracy among completed runs separately. |
+
+
+## Full eval, run 2 (2026-11-09): stopped, the machine kept sleeping
+
+Run 2 used the fixes above and got through F01 to F03 with no infrastructure failures, but the log showed gaps of 15 to 18 minutes with no output at all, four times. `pmset -g log` showed the cause: the Mac, on battery, repeatedly entered Maintenance Sleep, waking for roughly 45 seconds every 15 minutes. A `caffeinate` assertion (with `-s`, and on behalf of the eval process) was active and the app's own keep-awake was on, yet it still slept: that signature means a closed lid or a forced sleep, which software cannot prevent. At that rate the remaining scenarios would have taken hours, and sleeping mid-scenario freezes the load generator, so I stopped the run, cleared the injected fault and dropped the temporary schema. The harness is resumable; finished scenarios are kept.
+
+What this changed: the harness starts `caffeinate` itself, retries and excludes infrastructure failures, and the report says plainly that no valid full ablation exists yet (see [eval-report.md](eval-report.md)). It also showed, once more, that long-running measurements need a machine that stays awake.
+
+Other things the live runs showed:
+
+- **Real alert to containerized agent works.** Following the README quick start literally (load and injection run inside the container), the real Grafana alert reached the containerized agent, which diagnosed F03 citing `RB-001`, `svc:pricing-service` and `CHG-2003`, with 26 audit events and a $0.006 cost.
+- **A gap the quick start would have hit:** the injector inside the container wrote change records to a local file, but the agent reads them from Postgres. The injector now publishes them to the change store too (best effort, reported).
+- **The markup trimming fired in real output** (5 of 9 runs per arm in F01 to F03, and once in the container run).

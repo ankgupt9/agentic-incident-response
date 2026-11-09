@@ -37,3 +37,27 @@ def test_inject_and_clear_hit_the_right_admin_endpoints():
 def test_registry_rejects_unknown_fault():
     with pytest.raises(KeyError):
         FaultRegistry({"a"}).set("b")
+
+
+def test_change_records_are_published_to_the_knowledge_store_and_failure_to_do_so_is_reported(monkeypatch):
+    from datetime import datetime, timezone
+
+    from simulator.failure_injector.change_feed import ChangeEvent
+    from simulator.failure_injector.injector import publish_change_events
+
+    event = ChangeEvent(id="CHG-1", ts=datetime(2026, 11, 10, tzinfo=timezone.utc).isoformat(), service="pricing-service", kind="config", summary="x", actor="a")
+    seen = []
+
+    class FakeStore:
+        async def import_change_events(self, records):
+            seen.extend(r.id for r in records)
+
+    monkeypatch.setattr("knowledge_store.db.KnowledgeStore", FakeStore)
+    assert publish_change_events([event]) == "published 1 change record(s) to the knowledge store" and seen == ["CHG-1"]
+
+    class Down:
+        async def import_change_events(self, records):
+            raise ConnectionError("no database")
+
+    monkeypatch.setattr("knowledge_store.db.KnowledgeStore", Down)
+    assert "feed file only" in publish_change_events([event])

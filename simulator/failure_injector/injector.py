@@ -59,6 +59,26 @@ def load_failure_catalog(path: Path = CATALOG_PATH) -> dict[str, Failure]:
     return {f.id: f for f in failures}
 
 
+def publish_change_events(events) -> str:
+    """Also put the change records where the agent reads them (the knowledge store's change_events table).
+
+    The feed file is the durable record; this is what makes the records visible to get_recent_changes
+    when the injector runs inside a container or on the host. Best effort: a missing database only means
+    the agent will not see the records, and the caller is told so.
+    """
+    try:
+        import asyncio
+
+        from knowledge_store.db import KnowledgeStore
+        from knowledge_store.models import ChangeRecord
+
+        records = [ChangeRecord(**e.model_dump()) for e in events]
+        asyncio.run(KnowledgeStore().import_change_events(records))
+        return f"published {len(records)} change record(s) to the knowledge store"
+    except Exception as exc:  # no database, or the knowledge package is not installed
+        return f"change records written to the feed file only ({type(exc).__name__})"
+
+
 def inject(failure: Failure, client: httpx.Client | None = None, urls: dict[str, str] = SERVICE_URLS) -> None:
     client = client or httpx.Client(timeout=5)
     resp = client.put(f"{urls[failure.fault.service]}/admin/faults/{failure.fault.name}", json=failure.fault.params)
@@ -94,7 +114,8 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         failure = catalog[args.failure_id]
         inject(failure)
-        record_change_events(failure.change_event, ChangeFeed())
+        events = record_change_events(failure.change_event, ChangeFeed())
+        print(publish_change_events(events))
         print(f"injected {failure.id}: {failure.title} (expect {failure.expected_alert})")
         if args.duration:
             try:

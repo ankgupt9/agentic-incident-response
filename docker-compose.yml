@@ -135,7 +135,9 @@ services:
     # ANTHROPIC_API_KEY and AGENT_ADMIN_TOKEN come from the gitignored .env file.
     env_file:
       - { path: .env, required: false }
-    environment: *agent-env
+    environment:
+      <<: *agent-env
+      AGENT_ADMIN_TOKEN: ${AGENT_ADMIN_TOKEN:-}
     ports: ["8004:8000"]
     depends_on:
       knowledge-ingest: { condition: service_completed_successfully }

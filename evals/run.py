@@ -48,8 +48,19 @@ def governance_suite() -> dict:
     return {"passed": int(passed.group(1)) if passed else 0, "failed": int(failed.group(1)) if failed else 0}
 
 
+def keep_awake() -> None:
+    """Stop macOS sleeping for the length of the run. A sleep mid-run stalls the harness and leaves stale
+    network connections that surface as 'connection error' (this is how run 1 was lost)."""
+    import os
+    import shutil
+
+    if shutil.which("caffeinate"):
+        subprocess.Popen(["caffeinate", "-i", "-s", "-w", str(os.getpid())])
+
+
 async def main_async(args) -> int:
     load_dotenv()
+    keep_awake()
     catalog = load_failure_catalog()
     ids = list(catalog) if args.failures == "all" else args.failures.split(",")
     run_dir = args.resume or Path("evals/results") / time.strftime("%Y%m%d-%H%M%S")
