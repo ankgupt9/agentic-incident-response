@@ -24,3 +24,14 @@ async def store():
     await s.apply_schema()
     yield s
     await s.drop_schema()
+
+
+@pytest.fixture
+async def pg_audit():
+    """A PgAuditLog in its own throwaway schema."""
+    from agent.audit import PgAuditLog
+
+    a = PgAuditLog(schema=f"t_{uuid.uuid4().hex[:10]}")
+    await a.apply_schema()
+    yield a
+    await a.drop_schema()

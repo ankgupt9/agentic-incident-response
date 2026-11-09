@@ -195,3 +195,26 @@ async def test_tools_requested_after_the_cap_are_refused_with_an_explanation_and
     refusal = gw.calls[2]["messages"][-1]["content"][0]
     assert refusal["is_error"] is True and "step limit" in refusal["content"]
     assert result.status == "forced"
+
+
+async def test_kill_switch_halts_the_run_before_the_next_model_call():
+    calls = {"n": 0}
+
+    async def should_stop():
+        calls["n"] += 1
+        return "kill switch engaged" if calls["n"] >= 2 else None
+
+    gw = FakeGateway([tool_use_response(("t1", "query_logs", {})), submit()])
+    result = await run_diagnosis(ALERT, gw, toolbox(), should_stop=should_stop)
+    assert result.status == "halted" and "kill switch" in result.error
+    assert len(gw.calls) == 1  # the second model call never happened
+
+
+async def test_budget_forces_a_final_answer_like_the_step_cap():
+    import dataclasses
+
+    expensive = dataclasses.replace(tool_use_response(("t1", "query_logs", {})), cost_usd=0.02)
+    gw = FakeGateway([expensive, submit("s1")])
+    result = await run_diagnosis(ALERT, gw, toolbox(), budget_usd=0.01)
+    assert result.status == "forced"
+    assert "Budget limit reached" in str(gw.calls[-1]["messages"][-1]["content"])

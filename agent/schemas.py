@@ -40,8 +40,8 @@ class DiagnosisResult(BaseModel):
 
     alert: Alert
     # complete: model submitted a valid diagnosis. forced: step cap hit, final answer forced.
-    # failed: no valid diagnosis could be obtained.
-    status: Literal["complete", "forced", "failed"]
+    # failed: no valid diagnosis could be obtained. halted: stopped by the kill switch.
+    status: Literal["complete", "forced", "failed", "halted"]
     diagnosis: Diagnosis | None = None
     error: str | None = None
     steps: int = 0

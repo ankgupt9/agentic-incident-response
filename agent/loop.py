@@ -16,6 +16,7 @@ again every turn. Full design and test scenarios: docs/loop-checklist.md, tests/
 
 import asyncio
 import time
+from collections.abc import Awaitable, Callable
 
 from pydantic import ValidationError
 
@@ -33,6 +34,11 @@ from agent.toolbox import Toolbox, ToolResult
 
 STEP_LIMIT_MESSAGE = (
     "Step limit reached. Do not request any more tools; they will be refused. Call submit_diagnosis now "
+    "with your best assessment from the evidence gathered so far, and use a low confidence if the "
+    "evidence is thin."
+)
+BUDGET_MESSAGE = (
+    "Budget limit reached. Do not request any more tools; they will be refused. Call submit_diagnosis now "
     "with your best assessment from the evidence gathered so far, and use a low confidence if the "
     "evidence is thin."
 )
@@ -75,7 +81,10 @@ async def run_diagnosis(
     gateway: ModelGateway,
     toolbox: Toolbox,
     max_steps: int = 8,
+    budget_usd: float | None = None,
+    should_stop: Callable[[], Awaitable[str | None]] | None = None,
 ) -> DiagnosisResult:
+    """should_stop returns a reason when the run must end now (the kill switch); budget_usd caps spend."""
     if max_steps < 1:
         raise ValueError("max_steps must be at least 1")
 
@@ -96,9 +105,14 @@ async def run_diagnosis(
         # Step cap: tell the model to answer now and refuse any further investigation tools. The tools
         # stay declared (see above); the loop is what enforces the cap. This is a deliberate final
         # turn, not an extra step, so it is not counted against max_steps.
-        if not forced and result.steps >= max_steps:
+        if should_stop is not None and (reason := await should_stop()):
+            result.status, result.error = "halted", reason
+            break
+
+        over_budget = budget_usd is not None and result.cost_usd >= budget_usd
+        if not forced and (result.steps >= max_steps or over_budget):
             forced = True
-            messages.append({"role": "user", "content": STEP_LIMIT_MESSAGE})
+            messages.append({"role": "user", "content": BUDGET_MESSAGE if over_budget and result.steps < max_steps else STEP_LIMIT_MESSAGE})
 
         try:
             response = await gateway.complete(system=SYSTEM_PROMPT, messages=messages, tools=tools)
