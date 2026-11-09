@@ -14,6 +14,8 @@ import httpx
 import yaml
 from pydantic import BaseModel
 
+from simulator.failure_injector.change_feed import ChangeFeed, ChangeSpec, record_change_events
+
 CATALOG_PATH = Path(__file__).resolve().parents[2] / "failures" / "catalog.yaml"
 # Host-side ports published by docker-compose.yml.
 SERVICE_URLS = {"order-service": "http://localhost:8001", "pricing-service": "http://localhost:8002"}
@@ -36,6 +38,8 @@ class Failure(BaseModel):
     placeholder: bool = False
     fault: FaultSpec
     expected_alert: str
+    # The change a real change record would show for this failure. None when there is no causal change.
+    change_event: ChangeSpec | None = None
     symptoms: str
     root_cause: RootCause
     suggested_fix: str
@@ -85,6 +89,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         failure = catalog[args.failure_id]
         inject(failure)
+        record_change_events(failure.change_event, ChangeFeed())
         print(f"injected {failure.id}: {failure.title} (expect {failure.expected_alert})")
         if args.duration:
             try:

@@ -84,7 +84,8 @@ Day 4, evals, tuning, publish: pytest eval harness and scorer from the labeled c
 - [x] Day 2 built (pushed): gateway, MCP telemetry tools, schema, trigger service, tracing, AI health dashboard
 - [x] Core loop written by Claude Code at Ankur's request (agent/loop.py, 16 tests pass)
 - [ ] Ankur reviews agent/loop.py and can explain it
-- [ ] Claude Code: remove fault-enabled log leak, then build knowledge store, ingestion and tools (Day 2, parallel with the loop)
+- [x] Fault-enabled log leak removed; change feed with distractors added (87 tests, verified on the live stack)
+- [ ] Claude Code: build the knowledge store, ingestion and tools (Day 2)
 - [ ] Day 2 end-to-end run with knowledge tools off (ablation arm A, telemetry only)
 - [ ] Ankur writes runbooks (about 10 matching failures, 2 to 3 failures with none, about 5 distractors) and service catalog entries in knowledge/
 

@@ -5,6 +5,11 @@
 #
 # fault.service: order-service | pricing-service
 # fault.name:    a switch implemented in that service (see simulator/*/main.py)
+#
+# change_event (optional): the change a real change record would show for this failure, worded
+# like a real deploy, config change or schema bump. Never name the fault switch or the failure id.
+# Leave it out when there is no causal change (for example broker or consumer problems). The
+# injector writes it to the change feed together with unrelated distractor changes.
 
 failures:
   - id: F01
@@ -12,6 +17,7 @@ failures:
     placeholder: true
     fault: { service: pricing-service, name: quote_error, params: { status: 503 } }
     expected_alert: OrderSubmitErrorRateHigh
+    change_event: { service: pricing-service, kind: deploy, summary: "pricing-service v2.14.0 rolled out (price source client library upgrade)", ref: REL-2.14.0 }
     symptoms: Order submissions fail with 502; pricing-service /quote returns 503.
     root_cause:
       category: dependency_outage
@@ -23,6 +29,7 @@ failures:
     placeholder: true
     fault: { service: pricing-service, name: quote_delay, params: { seconds: 6 } }
     expected_alert: OrderSubmitErrorRateHigh
+    change_event: { service: pricing-service, kind: config, summary: "price source request timeout raised from 1s to 30s", actor: ops-config, ref: CFG-318 }
     symptoms: POST /orders latency hits the 5s client timeout, then submissions fail with 502.
     root_cause:
       category: dependency_latency
@@ -34,6 +41,7 @@ failures:
     placeholder: true
     fault: { service: pricing-service, name: stale_quotes, params: { factor: 1.1 } }
     expected_alert: PricingConsumerErrorRateHigh
+    change_event: { service: pricing-service, kind: config, summary: "quote cache refresh interval changed from 15m to 6h", actor: ops-config, ref: CFG-322 }
     symptoms: Orders are accepted (202) but the pricing consumer rejects them with "price mismatch".
     root_cause:
       category: data_inconsistency
@@ -45,6 +53,7 @@ failures:
     placeholder: true
     fault: { service: pricing-service, name: sku_missing, params: { sku: SKU-1003 } }
     expected_alert: OrderSubmitErrorRateHigh
+    change_event: { service: pricing-service, kind: data, summary: "nightly catalog sync removed 1 discontinued item (SKU-1003)", actor: catalog-sync, ref: SYNC-8813 }
     symptoms: Orders for SKU-1003 fail with 502; pricing-service logs "unknown sku=SKU-1003".
     root_cause:
       category: missing_reference_data
@@ -56,6 +65,7 @@ failures:
     placeholder: true
     fault: { service: order-service, name: schema_drift }
     expected_alert: PricingConsumerErrorRateHigh
+    change_event: { service: order-service, kind: schema, summary: "order message schema v2 to v3: field sku renamed to item_sku", ref: REL-3.2.0 }
     symptoms: Consumer fails with KeyError 'sku'; messages carry item_sku instead.
     root_cause:
       category: schema_mismatch
@@ -67,6 +77,7 @@ failures:
     placeholder: true
     fault: { service: order-service, name: malformed_payload }
     expected_alert: PricingConsumerErrorRateHigh
+    change_event: { service: order-service, kind: deploy, summary: "order-service v3.2.1 rolled out (publisher serializer upgrade)", ref: REL-3.2.1 }
     symptoms: Consumer fails with a JSON decode error; the payload is truncated.
     root_cause:
       category: malformed_payload

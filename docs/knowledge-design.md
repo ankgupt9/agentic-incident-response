@@ -222,12 +222,21 @@ Knowledge steers the agent, so it needs controls of its own.
 | Silent change in behavior after a content edit | The knowledge version hash is on every trace and audit entry, and evals record it. |
 | Sensitive content | Entries describe a simulated system. The same discipline applies in a real deployment: no secrets or customer data in knowledge files. |
 
-## 8. Changes to the simulator
+## 8. Changes to the simulator (done)
 
-Two changes make the knowledge sources realistic and keep the evals honest.
+Two changes make the knowledge sources realistic and keep the evals honest. Both are built and verified on the live stack.
 
 1. **Remove the answer leak.** The fault registry logs `fault enabled name=...` and `fault cleared`. The agent can read those in Loki and diagnose trivially. Those log lines are removed from the services.
 2. **Emit realistic change events instead.** When the injector enables a fault, it writes a change event worded like a real change record (a config change, a deploy, a schema version bump), not the fault's internal name. Each failure in the catalog gets a `change_event` field. Alongside it the injector emits unrelated **distractor** events, so the agent must pick the relevant change out of noise as a person would.
+
+What was actually changed:
+
+- Fault toggles in `simulator/common/faults.py` are silent: no log line on enable or clear.
+- The admin routes (`/admin/faults`) are excluded from tracing, so no span names the fault.
+- Two error texts that gave the game away were reworded: `injected: broker connection lost` is now `connection to broker lost`, and `injected quote failure` is now `price source unavailable`.
+- The change feed is `data/change_events.jsonl` (gitignored), written by `simulator/failure_injector/change_feed.py`. Each catalog failure has an optional `change_event`. F01 to F06 have one; F07 (broker) and F08 (stalled consumer) deliberately have none. Every injection also writes three distractor changes drawn from a pool of eight.
+- Leak checks: tests that toggling is silent, that no error text says "inject", and that no change record names a fault switch or failure ID. A live search of Loki for fault names, switch names and "inject" after injecting F03 and F07 found zero lines, and Tempo held no admin spans.
+- `scripts/verify_failures.py` calls the injector as a library and does not write change events. The eval runner must call `record_change_events` itself.
 
 A change feed makes some diagnoses easier. That is realistic, and the ablation (section 10) measures exactly how much easier.
 

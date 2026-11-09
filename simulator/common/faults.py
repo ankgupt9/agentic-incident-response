@@ -2,14 +2,15 @@
 
 The admin endpoints are mounted only when ENABLE_FAULT_INJECTION=true, so a
 service started without that flag has no way to be broken from outside.
+
+Toggling a fault is deliberately silent: no log line, and the admin routes are excluded from
+tracing. A log saying which fault was switched on would hand the diagnosis to the agent and
+invalidate every eval. The only record of a cause is the change feed the injector writes.
 """
 
-import logging
 import os
 
 from fastapi import APIRouter, FastAPI, HTTPException
-
-logger = logging.getLogger("faults")
 
 
 class FaultRegistry:
@@ -51,13 +52,11 @@ def mount_fault_admin(app: FastAPI, registry: FaultRegistry) -> None:
             registry.set(name, params)
         except KeyError:
             raise HTTPException(status_code=404, detail=f"unknown fault {name}") from None
-        logger.warning("fault enabled name=%s params=%s", name, params or {})
         return {"active": registry.active()}
 
     @router.delete("")
     async def clear_faults(name: str | None = None) -> dict:
         registry.clear(name)
-        logger.warning("fault cleared name=%s", name or "all")
         return {"active": registry.active()}
 
     app.include_router(router)

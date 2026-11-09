@@ -49,7 +49,7 @@ def make_publisher(channel: aio_pika.abc.AbstractChannel):
 
 def apply_publish_faults(body: dict) -> dict | bytes:
     if faults.get("publish_error") is not None:
-        raise aio_pika.exceptions.AMQPConnectionError("injected: broker connection lost")
+        raise aio_pika.exceptions.AMQPConnectionError("connection to broker lost")
     if faults.get("malformed_payload") is not None:
         return b'{"order_id": "' + body["order_id"].encode()  # truncated JSON
     if faults.get("schema_drift") is not None:

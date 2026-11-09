@@ -70,7 +70,7 @@ async def health() -> dict:
 @app.get("/quote/{sku}")
 async def quote(sku: str) -> dict:
     if (fault := faults.get("quote_error")) is not None:
-        raise HTTPException(status_code=fault.get("status", 503), detail="injected quote failure")
+        raise HTTPException(status_code=fault.get("status", 503), detail="price source unavailable")
     if (fault := faults.get("quote_delay")) is not None:
         await asyncio.sleep(fault.get("seconds", 6))
     try:

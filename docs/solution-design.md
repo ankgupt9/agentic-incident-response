@@ -147,7 +147,7 @@ flowchart TB
 | Sensitive data in traces | Content capture can be switched off; text truncated | Setting `AGENT_TRACE_CONTENT` | Built |
 | Agent is down or misbehaving | Kill switch; failed diagnoses are recorded, not hidden | Kill-switch test | Day 3 |
 | Stale or wrong knowledge (runbooks, catalog) leads to a confident wrong answer | Each knowledge entry has an owner and a last-reviewed date; diagnoses must cite the entry they used; eval ablation shows the knowledge's effect | Citations and ablation in evals | Day 2 and Day 4 |
-| Simulator leaks the answer (fault toggles are logged) | Remove those log lines before the baseline; emit neutral change events | Eval baseline reviewed for leakage | Day 2 |
+| Simulator leaks the answer (fault toggles are logged) | Remove those log lines before the baseline; emit neutral change events | Eval baseline reviewed for leakage | Fixed; change feed and leak tests in place |
 | Repeated alerts cause repeated spend | Same alert is not re-diagnosed within 10 minutes; at most 2 diagnoses run at once | Service tests | Built |
 
 ## A6. How success is measured

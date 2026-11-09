@@ -57,4 +57,5 @@ def setup_telemetry(service_name: str) -> bool:
 
 
 def instrument_app(app) -> None:
-    FastAPIInstrumentor.instrument_app(app)
+    # Fault admin calls are not traced: their spans would name the fault that was switched on.
+    FastAPIInstrumentor.instrument_app(app, excluded_urls="/admin/faults.*")
