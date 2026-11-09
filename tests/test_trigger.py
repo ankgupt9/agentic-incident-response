@@ -30,7 +30,7 @@ def test_parse_grafana_keeps_only_firing_alerts():
 
 
 async def test_alert_triggers_a_diagnosis_and_result_is_listed():
-    async def runner(alert):
+    async def runner(alert, diagnosis_id):
         return DiagnosisResult(alert=alert, status="complete", diagnosis=Diagnosis.model_validate(VALID))
 
     app = create_app(runner)
@@ -47,7 +47,7 @@ async def test_alert_triggers_a_diagnosis_and_result_is_listed():
 async def test_repeat_notification_for_same_alert_is_not_rediagnosed():
     calls = []
 
-    async def runner(alert):
+    async def runner(alert, diagnosis_id):
         calls.append(alert.name)
         return DiagnosisResult(alert=alert, status="failed", error="x")
 
@@ -60,7 +60,7 @@ async def test_repeat_notification_for_same_alert_is_not_rediagnosed():
 
 
 async def test_runner_crash_is_recorded_as_failed_not_raised():
-    async def runner(alert):
+    async def runner(alert, diagnosis_id):
         raise NotImplementedError("loop not written")
 
     app = create_app(runner)

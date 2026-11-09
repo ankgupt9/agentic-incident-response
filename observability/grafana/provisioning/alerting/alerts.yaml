@@ -17,6 +17,16 @@ contactPoints:
           url: http://host.docker.internal:8004/alerts
           httpMethod: POST
 
+  # Alerts about the agent itself go here and never to the agent trigger: an agent must not diagnose its own health.
+  - orgId: 1
+    name: ai-governance-notifications
+    receivers:
+      - uid: alert-recorder-governance
+        type: webhook
+        settings:
+          url: http://alert-recorder:8000/alerts
+          httpMethod: POST
+
 policies:
   - orgId: 1
     receiver: incident-notifications
@@ -24,6 +34,10 @@ policies:
     group_wait: 5s
     group_interval: 30s
     repeat_interval: 5m
+    routes:
+      - receiver: ai-governance-notifications
+        object_matchers:
+          - ["source", "=", "agent"]
 
 groups:
   - orgId: 1
@@ -121,3 +135,129 @@ groups:
               expression: B
               conditions:
                 - evaluator: { type: gt, params: [20] }
+
+  - orgId: 1
+    name: agent-health
+    folder: Incident Response
+    interval: 30s
+    rules:
+      - uid: agent-cost-per-diagnosis
+        title: AgentCostPerDiagnosisHigh
+        condition: C
+        for: 1m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+          source: agent
+        annotations:
+          summary: "Average cost per diagnosis is above $0.03 (normal is about $0.004)"
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: sum(increase(agent_cost_usd_total[15m])) / sum(increase(agent_diagnoses_total[15m]))
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0.03] }
+      - uid: agent-tool-error-rate
+        title: AgentToolErrorRateHigh
+        condition: C
+        for: 1m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+          source: agent
+        annotations:
+          summary: "More than 30% of the agent's tool calls are failing"
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: sum(rate(agent_tool_calls_total{outcome="error"}[5m])) / sum(rate(agent_tool_calls_total[5m]))
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0.3] }
+      - uid: agent-guardrail-blocks
+        title: AgentGuardrailBlocksHigh
+        condition: C
+        for: 1m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+          source: agent
+        annotations:
+          summary: "Guardrails blocked or cleaned more than 3 times in 15 minutes: possible prompt injection or a misbehaving agent"
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: sum(increase(agent_guardrail_blocks_total[15m]))
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [3] }
+      - uid: agent-failure-rate
+        title: AgentDiagnosisFailureRateHigh
+        condition: C
+        for: 1m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+          source: agent
+        annotations:
+          summary: "More than 30% of diagnoses failed or were halted"
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: sum(increase(agent_diagnoses_total{status=~"failed|halted"}[15m])) / sum(increase(agent_diagnoses_total[15m]))
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0.3] }

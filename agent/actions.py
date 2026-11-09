@@ -183,14 +183,19 @@ class MemoryApprovalStore:
 class ActionService:
     """Propose, decide, execute. The only path from a model suggestion to an effect."""
 
-    def __init__(self, store: ApprovalStore, audit: AuditLog, executor: Executor):
-        self.store, self.audit, self.executor = store, audit, executor
+    def __init__(self, store: ApprovalStore, audit: AuditLog, executor: Executor, on_event: Callable[[str, dict], None] | None = None):
+        self.store, self.audit, self.executor, self._on_event = store, audit, executor, on_event
+
+    def _emit(self, kind: str, **labels) -> None:
+        if self._on_event:
+            self._on_event(kind, labels)
 
     async def propose(self, diagnosis_id: str, tool: str, args: dict, reason: str) -> ProposedAction:
         clean = validate_action(tool, args, diagnosis_id)
         action = ProposedAction(diagnosis_id=diagnosis_id, tool=tool, args=clean, reason=reason[:500])
         await self.audit.record("action_proposed", diagnosis_id=diagnosis_id, actor=AGENT_ACTOR, action_id=action.id, tool=tool, args=clean, reason=action.reason)
         await self.store.create(action)
+        self._emit("proposed", tool=tool)
         return action
 
     async def approve(self, action_id: str, actor: str, comment: str | None = None) -> ProposedAction:
@@ -200,6 +205,7 @@ class ActionService:
         if action is None:
             raise ActionError("action is not pending (unknown, already decided, or expired)")
         await self.audit.record("approval_decided", diagnosis_id=action.diagnosis_id, actor=actor, action_id=action.id, approved=True, comment=comment)
+        self._emit("decided", decision="approved")
         try:
             result = await self.executor.execute(action)
             await self.store.finish(action.id, True, result)
@@ -216,4 +222,5 @@ class ActionService:
         if action is None:
             raise ActionError("action is not pending (unknown, already decided, or expired)")
         await self.audit.record("approval_decided", diagnosis_id=action.diagnosis_id, actor=actor, action_id=action.id, approved=False, comment=comment)
+        self._emit("decided", decision="rejected")
         return action

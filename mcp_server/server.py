@@ -16,7 +16,7 @@ from mcp_server.telemetry_backends import TelemetryBackends
 
 mcp = FastMCP("incident-tools")
 telemetry_backends = TelemetryBackends()
-knowledge_store = KnowledgeStore()
+knowledge_store = KnowledgeStore(schema=os.getenv("KNOWLEDGE_SCHEMA", "public"))
 # KNOWLEDGE_TOOLS=off serves telemetry tools only. The ablation's arm A runs this way.
 KNOWLEDGE_TOOLS_ON = os.getenv("KNOWLEDGE_TOOLS", "on").lower() != "off"
 

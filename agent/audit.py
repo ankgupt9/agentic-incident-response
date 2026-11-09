@@ -36,6 +36,13 @@ class MemoryAuditLog:
     def of(self, event: str) -> list[dict]:
         return [e for e in self.events if e["event"] == event]
 
+    async def trail(self, diagnosis_id: str) -> list[dict]:
+        return [e for e in self.events if e["diagnosis_id"] == diagnosis_id]
+
+    async def spend_today_usd(self) -> float:
+        today = datetime.now(timezone.utc).date()
+        return sum(e["detail"].get("cost_usd", 0.0) for e in self.of("diagnosis_finished") if e["ts"].date() == today)
+
 
 AUDIT_DDL = """
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -95,6 +102,10 @@ class PgAuditLog:
                 (diagnosis_id, diagnosis_id, event, event, limit),
             )
             return await cur.fetchall()
+
+    async def trail(self, diagnosis_id: str) -> list[dict]:
+        """Everything recorded for one diagnosis, oldest first."""
+        return list(reversed(await self.events(diagnosis_id=diagnosis_id, limit=1000)))
 
     async def spend_today_usd(self) -> float:
         """Sum of cost recorded by diagnosis_finished events since UTC midnight (for the daily budget)."""

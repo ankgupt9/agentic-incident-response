@@ -56,6 +56,11 @@ class Settings:
     max_retries: int = 2
     # False runs the agent on telemetry only (ablation arm A).
     knowledge_tools: bool = True
+    # The model may propose actions (it can never perform them). Real execution also needs actions_dry_run=False.
+    propose_actions: bool = True
+    actions_dry_run: bool = True
+    max_cost_per_diagnosis_usd: float = 0.05
+    daily_budget_usd: float = 2.0
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -66,4 +71,8 @@ class Settings:
             max_tokens=int(os.getenv("AGENT_MAX_TOKENS", defaults.max_tokens)),
             effort=os.getenv("AGENT_EFFORT", defaults.effort),
             knowledge_tools=os.getenv("AGENT_KNOWLEDGE_TOOLS", "on").lower() != "off",
+            propose_actions=os.getenv("AGENT_PROPOSE_ACTIONS", "on").lower() != "off",
+            actions_dry_run=os.getenv("AGENT_ACTIONS_DRY_RUN", "true").lower() != "false",
+            max_cost_per_diagnosis_usd=float(os.getenv("AGENT_MAX_COST_USD", defaults.max_cost_per_diagnosis_usd)),
+            daily_budget_usd=float(os.getenv("AGENT_DAILY_BUDGET_USD", defaults.daily_budget_usd)),
         )

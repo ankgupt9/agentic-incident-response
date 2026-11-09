@@ -66,6 +66,10 @@ def build_admin_router(service: ActionService, kill_switch: KillSwitch, audit: A
         await kill_switch.set(body.engaged, body.actor, body.reason)
         return {"engaged": body.engaged}
 
+    @router.get("/diagnoses/{diagnosis_id}/audit", dependencies=[Depends(require_admin)])
+    async def audit_trail(diagnosis_id: str) -> list[dict]:
+        return [{**e, "ts": str(e["ts"])} for e in await audit.trail(diagnosis_id)]
+
     @router.get("/approvals/ui", response_class=HTMLResponse)
     async def page() -> str:
         return APPROVAL_PAGE

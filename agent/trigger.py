@@ -60,9 +60,15 @@ def create_app(runner: Runner | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         if app.state.runner is None:
-            from agent.runner import build_runner  # deferred: needs an API key and telemetry exporters
+            # Deferred: needs an API key, telemetry exporters and Postgres.
+            from agent.admin_api import build_admin_router
+            from agent.runner import make_runner
+            from agent.runtime import build_runtime
 
-            app.state.runner = build_runner()
+            runtime = await build_runtime()
+            app.state.runtime = runtime
+            app.state.runner = make_runner(runtime)
+            app.include_router(build_admin_router(runtime.actions, runtime.kill_switch, runtime.audit))
         yield
         for t in tasks:
             t.cancel()
@@ -76,7 +82,7 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         async with slots:
             job.state = "running"
             try:
-                job.result = await app.state.runner(job.alert)
+                job.result = await app.state.runner(job.alert, job.id)
             except Exception as exc:
                 logger.exception("diagnosis crashed id=%s", job.id)
                 job.result = DiagnosisResult(alert=job.alert, status="failed", error=f"{type(exc).__name__}: {exc}")

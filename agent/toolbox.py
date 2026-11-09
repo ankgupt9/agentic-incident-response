@@ -13,7 +13,7 @@ from mcp.types import TextContent
 
 MAX_RESULT_CHARS = 8000
 # The MCP SDK starts the server with a minimal environment, so the settings it needs are passed on.
-PASSTHROUGH_ENV = ("LOKI_URL", "TEMPO_URL", "PROMETHEUS_URL", "DATABASE_URL", "POSTGRES_PASSWORD")
+PASSTHROUGH_ENV = ("LOKI_URL", "TEMPO_URL", "PROMETHEUS_URL", "DATABASE_URL", "POSTGRES_PASSWORD", "KNOWLEDGE_SCHEMA")
 
 
 @dataclass(frozen=True)

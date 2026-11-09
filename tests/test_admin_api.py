@@ -103,3 +103,12 @@ async def test_pg_approval_store_refuses_to_decide_an_expired_action(pg_approval
     await pg_approvals.create(a)
     assert await pg_approvals.decide(a.id, True, "ankur", None) is None
     assert (await pg_approvals.get(a.id)).status == "pending"
+
+
+async def test_audit_trail_endpoint_returns_one_diagnosis_history_to_an_admin_only(env):
+    client, service, _, audit = env
+    await audit.record("tool_call_requested", diagnosis_id="d9", tool="query_logs")
+    await audit.record("tool_call_requested", diagnosis_id="other", tool="get_trace")
+    assert (await client.get("/diagnoses/d9/audit")).status_code == 401
+    rows = (await client.get("/diagnoses/d9/audit", headers=TOKEN)).json()
+    assert [r["detail"]["tool"] for r in rows] == ["query_logs"]
