@@ -7,6 +7,7 @@ and is labeled as data in the output.
 """
 
 import base64
+import os
 import re
 import time
 from collections import OrderedDict
@@ -27,6 +28,18 @@ _VARIABLE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 
 class ToolError(Exception):
     """A tool call that failed in a way the model should see (bad input, backend down)."""
+
+
+def telemetry_floor_ns() -> int:
+    """Eval-only incident window: queries never look earlier than this (TELEMETRY_FLOOR_NS, ns since epoch).
+
+    Lets an eval give each scenario a clean view without waiting for earlier scenarios' logs to age out.
+    Unset in normal operation.
+    """
+    try:
+        return int(os.getenv("TELEMETRY_FLOOR_NS", "0"))
+    except ValueError:
+        return 0
 
 
 def sanitize_log_text(text: str) -> str:
@@ -69,7 +82,8 @@ async def query_logs(
     minutes, limit = _clamp(minutes, 1, 60), _clamp(limit, 1, MAX_LOG_LIMIT)
     query = build_logql(service, level, contains)
     now_ns = time.time_ns()
-    params = {"query": query, "limit": limit, "direction": "backward", "start": now_ns - minutes * 60 * 10**9, "end": now_ns}
+    start_ns = max(now_ns - minutes * 60 * 10**9, telemetry_floor_ns())
+    params = {"query": query, "limit": limit, "direction": "backward", "start": start_ns, "end": now_ns}
     try:
         resp = await b.get(b.loki_url, "/loki/api/v1/query_range", params)
         resp.raise_for_status()
@@ -183,7 +197,8 @@ async def query_metrics(b: TelemetryBackends, query: str, minutes: int = 15) -> 
         raise ToolError("query must be 1-500 characters")
     minutes = _clamp(minutes, 1, 120)
     end = time.time()
-    params = {"query": query, "start": end - minutes * 60, "end": end, "step": max(15, minutes * 60 // 60)}
+    start = max(end - minutes * 60, telemetry_floor_ns() / 1e9)
+    params = {"query": query, "start": start, "end": end, "step": max(15, minutes * 60 // 60)}
     try:
         resp = await b.get(b.prometheus_url, "/api/v1/query_range", params)
     except Exception as exc:

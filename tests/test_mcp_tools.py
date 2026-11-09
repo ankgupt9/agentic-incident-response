@@ -190,3 +190,20 @@ async def test_live_tools_against_the_local_stack():
     b = TelemetryBackends()
     assert "window: 15m" in await tools.query_logs(b, minutes=15, limit=5)
     assert "window: 5m" in await tools.query_metrics(b, "sum(rate(orders_submitted_total[1m]))", 5)
+
+
+async def test_telemetry_floor_clamps_how_far_back_queries_look(monkeypatch):
+    seen = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.update(req.url.params)
+        return httpx.Response(200, json=loki_payload())
+
+    floor = time.time_ns() - 30 * 10**9
+    monkeypatch.setenv("TELEMETRY_FLOOR_NS", str(floor))
+    await tools.query_logs(telemetry_backends(handler), minutes=60)
+    assert int(seen["start"]) == floor  # 60 minutes asked for, clamped to the 30 seconds the window allows
+
+    monkeypatch.delenv("TELEMETRY_FLOOR_NS")
+    await tools.query_logs(telemetry_backends(handler), minutes=60)
+    assert int(seen["start"]) < floor - 3000 * 10**9

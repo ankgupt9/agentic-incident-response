@@ -125,6 +125,10 @@ class KnowledgeStore:
                     )
         return len(records)
 
+    async def clear_change_events(self) -> None:
+        async with self._conn() as conn:
+            await conn.execute("DELETE FROM change_events")
+
     async def current_version(self) -> str | None:
         async with self._conn() as conn:
             cur = await conn.execute("SELECT version FROM knowledge_versions ORDER BY ingested_at DESC LIMIT 1")
