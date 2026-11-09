@@ -74,3 +74,28 @@ def test_constraints_dropped_from_the_strict_schema_are_still_enforced_by_valida
     with pytest.raises(ValidationError):
         parse_diagnosis({**VALID, "category": "x" * 41})
     assert "0" in str(submit_diagnosis_tool()["input_schema"]["properties"]["confidence"]["description"])  # hint kept for the model
+
+
+def test_quotes_joined_with_semicolons_or_ellipses_are_grounded_if_each_part_is_real():
+    seen = ["status=error: last=1669 min=0 max=1669 first=0\nstatus=ok: last=0 min=0 max=38.64 first=0"]
+    joined = Diagnosis.model_validate({**VALID, "evidence": [{"source": "metrics", "reference": "q", "quote": "status=error: last=1669 min=0 max=1669 first=0; status=ok: last=0 min=0 max=38.64"}]})
+    assert ungrounded_evidence(joined, seen) == []
+
+
+def test_summaries_and_invented_text_are_not_grounded():
+    seen = ["status=error: last=1669 min=0 max=1669 first=0"]
+    summary = Diagnosis.model_validate({**VALID, "evidence": [
+        {"source": "trace", "reference": "t", "quote": "order-service called pricing-service and got 200 while the consumer then raised an exception"},
+        {"source": "metrics", "reference": "q", "quote": "status=error: last=1669 min=0 max=1669 first=0; status=error: last=99999 min=5 max=7"},
+    ]})
+    assert len(ungrounded_evidence(summary, seen)) == 2
+
+
+def test_tool_call_markup_in_a_text_field_is_rejected_so_the_model_can_correct_it():
+    leaked = "The cache was changed.</root_cause>\n<parameter name=\"category\">stale_quote_cache"
+    for field in ("root_cause", "recommended_action"):
+        with pytest.raises(ValidationError, match="tool-call markup"):
+            parse_diagnosis({**VALID, field: leaked})
+    # log text with angle brackets inside evidence is legitimate and untouched
+    ok = parse_diagnosis({**VALID, "evidence": [{"source": "logs", "reference": "r", "quote": "error=<AMQPConnectionError: ('connection to broker lost',)>"}]})
+    assert ok.evidence[0].quote.startswith("error=<AMQP")

@@ -34,7 +34,7 @@ def render_report(meta: dict, records: list[dict], guardrail_runs: list[dict], s
         ("Mean score (correct 1, partial 0.5)", lambda a, s: fmt(s["accuracy_lenient"])),
         ("Fix quality (good 1, partial 0.5)", lambda a, s: fmt(s["fix_quality"])),
         ("Completed with a valid diagnosis", lambda a, s: frac(sum(r["completed"] for r in per_arm[a]), s["n"])),
-        ("Evidence grounding", lambda a, s: fmt(s["grounding"])),
+        ("Evidence quotes found in tool output", lambda a, s: fmt(s["grounding"])),
         ("Names the right service", lambda a, s: fmt(s["service_match"])),
         ("Mean confidence", lambda a, s: fmt(s["mean_confidence"])),
         ("Brier score (lower is better)", lambda a, s: fmt(s["calibration"]["brier"], ".3f")),

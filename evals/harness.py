@@ -17,7 +17,7 @@ from typing import Protocol
 import httpx
 
 from agent.gateway import ModelGateway
-from agent.schemas import Alert, DiagnosisResult
+from agent.schemas import Alert, DiagnosisResult, ungrounded_evidence
 from evals.judge import judge
 from evals.scenarios import EXPECTED_RUNBOOK, INJECTION_PHRASES
 from evals.scoring import grounding
@@ -152,6 +152,7 @@ async def score_run(failure: Failure, arm: str, repeat: int, result: DiagnosisRe
         **record, "root_cause": verdict.root_cause, "fix": verdict.fix, "judge_reasoning": verdict.reasoning, "judge_cost_usd": judge_cost,
         "confidence": dg.confidence, "grounding": grounding(dg, result.observed), "service_match": failure.fault.service in dg.affected_services,
         "knowledge_refs": dg.knowledge_refs, "cited_expected": bool(expected and expected in dg.knowledge_refs),
+        "ungrounded_quotes": [e.quote[:160] for e in ungrounded_evidence(dg, result.observed)],
         "category": dg.category, "root_cause_text": dg.root_cause, "recommended_action": dg.recommended_action,
     }
 

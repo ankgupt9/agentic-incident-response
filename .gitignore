@@ -19,3 +19,4 @@ __pycache__/
 # Docker / local data
 *.log
 data/
+evals/results/

@@ -3,7 +3,7 @@
 import re
 from typing import Literal
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 SUBMIT_DIAGNOSIS = "submit_diagnosis"
 
@@ -24,8 +24,19 @@ class Evidence(BaseModel):
     quote: str = Field(max_length=400, description="Short excerpt copied verbatim from a tool result")
 
 
+# Tool-call markup that sometimes leaks into a text field when the model's structured output goes wrong.
+_MARKUP_LEAK = re.compile(r"</?(root_cause|recommended_action|category|evidence|confidence|affected_services|knowledge_refs|parameter|invoke|function_calls|antml:\w+)\b[^>]*>|<parameter\b", re.IGNORECASE)
+
+
 class Diagnosis(BaseModel):
     """What the model must submit. Structure is checked here; correctness is checked by evals."""
+
+    @field_validator("root_cause", "recommended_action")
+    @classmethod
+    def _plain_text(cls, value: str) -> str:
+        if _MARKUP_LEAK.search(value):
+            raise ValueError("contains tool-call markup such as </root_cause> or <parameter>; write plain text only")
+        return value
 
     root_cause: str = Field(description="One or two sentences: what failed and why")
     category: str = Field(pattern=r"^[a-z][a-z0-9_]{2,39}$", description="Short snake_case label of 3 to 40 characters, e.g. schema_mismatch")
@@ -116,10 +127,22 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
+_JOINERS = re.compile(r";|…|\.\.\.")
+MIN_FRAGMENT_CHARS = 12
+
+
 def ungrounded_evidence(diagnosis: Diagnosis, observed: list[str]) -> list[Evidence]:
     """Evidence whose quote does not appear in any tool result the model was shown.
 
-    Catches fabricated citations. Quotes are compared whitespace- and case-insensitively.
+    Catches fabricated citations and summaries passed off as quotes. A quote may join several real
+    excerpts with ';' or '...'; each excerpt (of at least 12 characters) must appear in a tool result.
+    Comparison ignores case and whitespace.
     """
     haystack = _norm("\n".join(observed))
-    return [e for e in diagnosis.evidence if _norm(e.quote) not in haystack]
+    missing = []
+    for e in diagnosis.evidence:
+        fragments = [_norm(f) for f in _JOINERS.split(e.quote)]
+        fragments = [f for f in fragments if len(f) >= MIN_FRAGMENT_CHARS] or [_norm(e.quote)]
+        if any(f not in haystack for f in fragments):
+            missing.append(e)
+    return missing
