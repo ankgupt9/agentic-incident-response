@@ -95,5 +95,23 @@ services:
       - phoenix-data:/mnt/data
     ports: ["6006:6006"] # UI and OTLP/HTTP (/v1/traces); gRPC 4317 is not published (collector owns it)
 
+  # --- Knowledge store (runbooks, service catalog, contracts, change events; audit log from Day 3) ---
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: agent
+      # POC default for a throwaway local database. Set POSTGRES_PASSWORD in .env to override.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agent_dev}
+      POSTGRES_DB: agent
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports: ["5432:5432"] # published because the agent runs on the host during development
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent -d agent"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
 volumes:
   phoenix-data:
+  postgres-data:

@@ -1,0 +1,19 @@
+# Drafted from the code by Claude Code. Ankur: complete known_quirks and anything the code does not say, then set status: active.
+id: order-service
+owner: ankur
+last_reviewed: 2026-11-09
+status: draft
+purpose: Accepts orders over HTTP, asks pricing-service for a unit price, then publishes the order to the orders queue.
+depends_on: [pricing-service, rabbitmq]
+depended_on_by: []
+interfaces:
+  http: ["POST /orders"]
+  publishes: ["orders queue"]
+configuration:
+  pricing_request_timeout: 5 seconds
+  queue_delivery: persistent messages on a durable queue
+slo:
+  submit_error_rate: "under 20% over 1 minute; alert OrderSubmitErrorRateHigh fires after 30 seconds above that"
+known_quirks: []
+escalation:
+  ask: ankur

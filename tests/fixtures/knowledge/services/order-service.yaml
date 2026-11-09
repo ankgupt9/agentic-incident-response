@@ -1,0 +1,10 @@
+id: order-service
+owner: ankur
+last_reviewed: 2026-11-01
+status: active
+purpose: Accepts orders and publishes them to the orders queue.
+depends_on: ['pricing-service', 'rabbitmq']
+depended_on_by: []
+known_quirks: []
+escalation:
+  ask: ankur

@@ -1,0 +1,10 @@
+id: rabbitmq
+owner: ankur
+last_reviewed: 2026-11-01
+status: active
+purpose: Broker carrying the orders queue.
+depends_on: []
+depended_on_by: ['order-service', 'pricing-service']
+known_quirks: []
+escalation:
+  ask: ankur

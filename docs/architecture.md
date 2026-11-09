@@ -32,7 +32,7 @@ flowchart TB
     subgraph L4["Layer 4: MCP tools and knowledge"]
         direction LR
         MCP["MCP server: query_logs,<br/>get_trace, query_metrics"]
-        KN["Knowledge tools: runbooks,<br/>service catalog, recent changes"]:::planned
+        KN["Knowledge tools: runbooks,<br/>service catalog, recent changes"]
         ACT["Action tools: replay_message,<br/>draft_pull_request"]:::planned
     end
 
@@ -130,4 +130,5 @@ flowchart LR
 | 2. Platform observability | `observability/` |
 | 3. Agent core | `agent/gateway.py`, `agent/anthropic_gateway.py`, `agent/loop.py`, `agent/trigger.py`, `agent/runner.py` |
 | 4. MCP tools | `mcp_server/`, `agent/toolbox.py` |
+| 4. Knowledge | `knowledge/` (content), `knowledge_store/` (lint, ingest, search), `mcp_server/knowledge_tools.py` |
 | 6. Agent observability | `agent/tracing.py`, `observability/grafana/dashboards/ai-health.json` |

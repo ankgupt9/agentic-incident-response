@@ -19,7 +19,7 @@ def build_runner(settings: Settings | None = None, telemetry: AgentTelemetry | N
 
     async def runner(alert: Alert) -> DiagnosisResult:
         with telemetry.diagnosis_span(alert) as span:
-            async with McpToolbox() as toolbox:
+            async with McpToolbox(env={"KNOWLEDGE_TOOLS": "on" if settings.knowledge_tools else "off"}) as toolbox:
                 result = await run_diagnosis(alert, gateway, TracedToolbox(toolbox, telemetry))
             telemetry.record_diagnosis(span, result)
         return result

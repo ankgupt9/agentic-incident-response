@@ -1,0 +1,10 @@
+id: pricing-service
+owner: ankur
+last_reviewed: 2026-11-01
+status: active
+purpose: Serves quotes and validates queued orders.
+depends_on: ['rabbitmq']
+depended_on_by: ['order-service']
+known_quirks: []
+escalation:
+  ask: ankur

@@ -1,5 +1,6 @@
 """Tool access for the loop. The loop sees a Toolbox; production backs it with the MCP server."""
 
+import os
 import sys
 from collections.abc import Callable
 from contextlib import AsyncExitStack
@@ -7,10 +8,12 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from mcp import ClientSession
-from mcp.client.stdio import StdioServerParameters, stdio_client
+from mcp.client.stdio import StdioServerParameters, get_default_environment, stdio_client
 from mcp.types import TextContent
 
 MAX_RESULT_CHARS = 8000
+# The MCP SDK starts the server with a minimal environment, so the settings it needs are passed on.
+PASSTHROUGH_ENV = ("LOKI_URL", "TEMPO_URL", "PROMETHEUS_URL", "DATABASE_URL", "POSTGRES_PASSWORD")
 
 
 @dataclass(frozen=True)
@@ -49,7 +52,8 @@ class McpToolbox:
     """Talks to mcp_server/server.py over stdio. Use as an async context manager."""
 
     def __init__(self, command: str = sys.executable, args: list[str] | None = None, env: dict[str, str] | None = None):
-        self._params = StdioServerParameters(command=command, args=args or ["-m", "mcp_server.server"], env=env)
+        server_env = {**get_default_environment(), **{k: os.environ[k] for k in PASSTHROUGH_ENV if k in os.environ}, **(env or {})}
+        self._params = StdioServerParameters(command=command, args=args or ["-m", "mcp_server.server"], env=server_env)
         self._stack = AsyncExitStack()
         self._session: ClientSession | None = None
         self._specs: list[dict] = []

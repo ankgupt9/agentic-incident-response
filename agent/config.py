@@ -54,6 +54,8 @@ class Settings:
     effort: str = "medium"
     timeout_s: float = 60.0
     max_retries: int = 2
+    # False runs the agent on telemetry only (ablation arm A).
+    knowledge_tools: bool = True
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -63,4 +65,5 @@ class Settings:
             model=os.getenv("AGENT_MODEL", defaults.model),
             max_tokens=int(os.getenv("AGENT_MAX_TOKENS", defaults.max_tokens)),
             effort=os.getenv("AGENT_EFFORT", defaults.effort),
+            knowledge_tools=os.getenv("AGENT_KNOWLEDGE_TOOLS", "on").lower() != "off",
         )

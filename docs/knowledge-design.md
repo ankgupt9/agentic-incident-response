@@ -4,7 +4,7 @@ How the agent gets the system knowledge that an on-call engineer would otherwise
 
 | | |
 |---|---|
-| Status | Design. Nothing in this document is built yet. Build starts on Day 2, in parallel with the core loop (see section 9). |
+| Status | Machinery built (Day 2): Postgres store, ingestion, lint, versioning, five tools, off switch, golden-query tests. Content not written yet: no runbooks, and the service catalog entries are drafts. Past incidents, `ask_human`, citations and audit logging are not built (see section 12). |
 | Why it exists | Telemetry explains what happened. Knowledge explains why. See [solution-design.md](solution-design.md) section A1. |
 | Owner of content | Ankur (runbooks, service catalog). Claude Code builds the machinery. |
 
@@ -293,3 +293,29 @@ The headline result for the write-up is the ablation: how much accuracy, and at 
 - **Where change events live in the real world.** The simulator invents them. In production they come from a deploy pipeline or change-management system. The tool contract stays the same.
 - **Past incident trust.** How much weight agent-written records deserve until a human confirms them.
 - **Knowledge size.** At 15 to 20 runbooks the agent could be given more of it directly. The design assumes a larger corpus, and the ablation will show whether search is even needed at this scale.
+
+## 12. Implementation status
+
+| Piece | State | Where |
+|---|---|---|
+| Postgres service with a persistent volume | Built | `docker-compose.yml` (`postgres`, volume `postgres-data`) |
+| Loader for runbooks and catalog entries; contracts generated from code | Built | `knowledge_store/loader.py`, `simulator/common/contracts.py` |
+| Lint: ids, owners, review dates and staleness, unknown services, answer-leak terms, shape | Built | `knowledge_store/lint.py` |
+| Store with full-text search (OR semantics, ranked), versioning, change events | Built | `knowledge_store/db.py` |
+| Ingestion CLI (lint first; nothing loads if lint fails) | Built | `python -m knowledge_store.ingest [--lint-only]` |
+| Tools: `search_runbooks`, `get_runbook`, `get_service_info`, `get_contract`, `get_recent_changes` | Built | `mcp_server/knowledge_tools.py`, registered in `mcp_server/server.py` |
+| Off switch for the telemetry-only arm | Built | `AGENT_KNOWLEDGE_TOOLS=off` (setting) and `KNOWLEDGE_TOOLS=off` (server) |
+| Golden-query retrieval tests, fixture set and a hook for Ankur's real queries | Built | `tests/test_knowledge_golden.py`, `knowledge/golden_queries.yaml` |
+| Runbooks | **Ankur** | `knowledge/runbooks/` (template provided) |
+| Service catalog entries | Drafted from the code; Ankur completes | `knowledge/services/` |
+| `knowledge_refs` and citation check | Day 3 | |
+| Knowledge lookups in the audit log; knowledge version on traces | Day 3 | |
+| `search_past_incidents`, `ask_human` | Stretch, first to cut | |
+
+Notes from building it:
+
+- YAML reads an unquoted `502` as a number, so the loader coerces tags and service names to text.
+- Search uses OR semantics. A model-written query rarely contains every word of the right runbook, so any matching word counts and rank orders the results.
+- The knowledge version is a hash of document content only. Change events are live data and are not part of it.
+- The MCP SDK starts the server with a minimal environment, so `McpToolbox` passes the database and backend settings through explicitly.
+- Tests that need Postgres run in a throwaway schema and skip when the database is not running.

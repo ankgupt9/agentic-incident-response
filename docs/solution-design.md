@@ -260,7 +260,7 @@ flowchart TB
     subgraph L4["Layer 4: MCP tools and knowledge"]
         direction LR
         MCP["MCP server: query_logs,<br/>get_trace, query_metrics"]
-        KN["Knowledge tools: runbooks,<br/>service catalog, recent changes"]:::planned
+        KN["Knowledge tools: runbooks,<br/>service catalog, recent changes"]
         ACT["Action tools: replay_message,<br/>draft_pull_request"]:::planned
     end
 
@@ -309,6 +309,7 @@ flowchart LR
             direction TB
             SVCS["order-service :8001<br/>pricing-service :8002<br/>alert-recorder :8003"]
             MQ["RabbitMQ :5672 / :15672"]
+            PG[("Postgres :5432<br/>knowledge store")]
             COL["OTel Collector<br/>:4317 / :4318"]
             BE["Loki :3100<br/>Tempo :3200<br/>Prometheus :9090"]
             GRAF["Grafana :3000"]
@@ -319,6 +320,7 @@ flowchart LR
     AG -- "HTTPS" --> CLAUDE
     AG -- "stdio" --> MCPP
     MCPP -- "HTTP queries" --> BE
+    MCPP -- "SQL" --> PG
     AG -- "OTLP spans + metrics" --> COL
     AG -- "OTLP spans" --> PHX
     GRAF -- "webhook via<br/>host.docker.internal:8004" --> AG
@@ -641,16 +643,18 @@ An ablation compares telemetry only against telemetry plus knowledge tools, whic
 | Phoenix and AI Health dashboard | Built | `docker-compose.yml`, `ai-health.json` | checked on live stack |
 | Core loop | Built; Ankur to review | `agent/loop.py`, `docs/loop-checklist.md` | 16 |
 | End-to-end run | Waiting on the loop | | |
-| Knowledge layer (runbooks, catalog, contracts, change events) | Planned (Day 2) | `knowledge/`, see `docs/knowledge-design.md` | |
+| Knowledge machinery (store, ingestion, lint, five tools, off switch) | Built | `knowledge_store/`, `mcp_server/knowledge_tools.py` | 35 |
+| Knowledge content (runbooks, catalog entries) | Ankur to write; catalog entries drafted | `knowledge/` | |
 | Actions, governance, kill switch | Planned (Day 3) | | |
 | Evals, ablation, README, demo | Planned (Day 4) | | |
 
-Test totals: 77 passing, 0 skipped.
+Test totals: 122 passing, 1 skipped (real golden queries, until runbooks exist).
 
 ## C3. Ports and endpoints
 
 | Port | Service | Notes |
 |---|---|---|
+| 5432 | Postgres | Knowledge store (audit log from Day 3); persistent volume |
 | 3000 | Grafana | Anonymous admin (POC); dashboards "Order Flow" and "AI Health" |
 | 6006 | Phoenix | Trace viewer and OTLP/HTTP intake; auth off (POC) |
 | 8001 | order-service | `POST /orders`, `/admin/faults` |
@@ -710,6 +714,7 @@ What this proof of concept deliberately simplifies:
 | Telemetry volume | Everything sampled | Sampling and cost controls |
 | Agent hosting | On the host | Containerized, autoscaled, with the kill switch behind access control |
 | Agent state | In-memory diagnosis jobs | Durable store with the audit log |
+| Database credentials | Throwaway default password in `docker-compose.yml` | Secrets manager and rotation |
 
 ## C6. Risks and open questions
 

@@ -47,6 +47,7 @@ A name must say what a thing is and must not be reused for something else. Check
 - `DiagnosisJob` (one queued or running diagnosis in the trigger), `DiagnosisResult` (what the loop returns), `Diagnosis` (what the model submits).
 - "failure catalog" is `failures/catalog.yaml`; "service catalog" is the knowledge layer in `knowledge/services/`. Say which one. `MODEL_PRICES` is token pricing; `SKU_PRICES` is the simulated price list.
 - `TelemetryBackends` are Loki, Tempo and Prometheus. "Gateway" always means the model gateway.
+- `knowledge/` is the knowledge content (runbooks, service catalog entries, golden queries). `knowledge_store/` is the code that lints, ingests and searches it (Postgres).
 
 ## Stack
 
@@ -85,7 +86,8 @@ Day 4, evals, tuning, publish: pytest eval harness and scorer from the labeled c
 - [x] Core loop written by Claude Code at Ankur's request (agent/loop.py, 16 tests pass)
 - [ ] Ankur reviews agent/loop.py and can explain it
 - [x] Fault-enabled log leak removed; change feed with distractors added (87 tests, verified on the live stack)
-- [ ] Claude Code: build the knowledge store, ingestion and tools (Day 2)
+- [x] Knowledge store, ingestion, lint and five knowledge tools built, with an off switch for arm A (122 tests, verified through MCP on the live stack)
+- [ ] Day 2 remaining: end-to-end run with knowledge tools off (arm A)
 - [ ] Day 2 end-to-end run with knowledge tools off (ablation arm A, telemetry only)
 - [ ] Ankur writes runbooks (about 10 matching failures, 2 to 3 failures with none, about 5 distractors) and service catalog entries in knowledge/
 

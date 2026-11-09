@@ -5,7 +5,7 @@ import time
 import httpx
 import pytest
 from mcp import ClientSession
-from mcp.client.stdio import StdioServerParameters, stdio_client
+from mcp.client.stdio import StdioServerParameters, get_default_environment, stdio_client
 
 from mcp_server import tools
 from mcp_server.telemetry_backends import TelemetryBackends
@@ -118,15 +118,30 @@ async def test_query_metrics_rejects_bad_input_and_prometheus_errors():
         await tools.query_metrics(telemetry_backends(lambda r: bad), "((")
 
 
-async def test_mcp_server_lists_tools_and_reports_errors_over_stdio():
-    params = StdioServerParameters(command=sys.executable, args=["-m", "mcp_server.server"])
+TELEMETRY_TOOLS = {"query_logs", "get_trace", "query_metrics"}
+KNOWLEDGE_TOOLS = {"search_runbooks", "get_runbook", "get_service_info", "get_contract", "get_recent_changes"}
+
+
+async def _list_tools(knowledge: str | None):
+    env = {**get_default_environment(), **({"KNOWLEDGE_TOOLS": knowledge} if knowledge else {})}
+    params = StdioServerParameters(command=sys.executable, args=["-m", "mcp_server.server"], env=env)
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
-            listed = await session.list_tools()
-            assert {t.name for t in listed.tools} == {"query_logs", "get_trace", "query_metrics"}
+            names = {t.name for t in (await session.list_tools()).tools}
             result = await session.call_tool("get_trace", {"trace_id": "not-hex"})
-            assert result.isError is True
+            return names, result
+
+
+async def test_mcp_server_offers_telemetry_and_knowledge_tools_and_reports_errors_over_stdio():
+    names, result = await _list_tools(None)
+    assert names == TELEMETRY_TOOLS | KNOWLEDGE_TOOLS
+    assert result.isError is True
+
+
+async def test_knowledge_tools_can_be_switched_off_for_the_telemetry_only_arm():
+    names, _ = await _list_tools("off")
+    assert names == TELEMETRY_TOOLS
 
 
 def _stack_up() -> bool:

@@ -1,0 +1,10 @@
+# Search queries paired with the runbook ids that must appear in the top 3 results.
+# Ankur adds entries as runbooks are written. tests/test_knowledge_golden.py checks them.
+#
+# queries:
+#   - query: orders rejected by the consumer with a price mismatch
+#     expect: [RB-001]
+#   - query: queue depth keeps climbing but orders are accepted
+#     expect: [RB-002]
+#     service: pricing-service        # optional: restrict to runbooks that apply to a service
+queries: []
