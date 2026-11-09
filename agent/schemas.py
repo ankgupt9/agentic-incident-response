@@ -28,7 +28,7 @@ class Diagnosis(BaseModel):
     """What the model must submit. Structure is checked here; correctness is checked by evals."""
 
     root_cause: str = Field(description="One or two sentences: what failed and why")
-    category: str = Field(max_length=40, description="Short snake_case label, e.g. schema_mismatch")
+    category: str = Field(pattern=r"^[a-z][a-z0-9_]{2,39}$", description="Short snake_case label of 3 to 40 characters, e.g. schema_mismatch")
     evidence: list[Evidence] = Field(min_length=1)
     confidence: float = Field(ge=0, le=1, description="0 to 1. Use below 0.5 when evidence is thin")
     affected_services: list[str] = Field(min_length=1)
@@ -52,15 +52,49 @@ class DiagnosisResult(BaseModel):
     latency_s: float = 0.0
 
 
+# Keywords the API's strict tool mode rejects. Pydantic still enforces them when we validate the input.
+_STRICT_UNSUPPORTED = {"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "minLength", "maxLength", "multipleOf", "maxItems", "pattern"}
+
+
+def strict_schema(node):
+    """A strict-mode-safe copy of a JSON schema: closed objects, unsupported constraints moved into the description.
+
+    Strict mode makes the API guarantee the model's input matches the schema exactly (no missing
+    required fields), which a plain schema does not. Without it the model occasionally dropped
+    `category` even after being told to fix it.
+    """
+    if isinstance(node, list):
+        return [strict_schema(n) for n in node]
+    if not isinstance(node, dict):
+        return node
+    out, hints = {}, []
+    for key, value in node.items():
+        if key in _STRICT_UNSUPPORTED or (key == "minItems" and value not in (0, 1)):
+            hints.append(f"{key} {value}")
+        elif key == "properties":
+            out[key] = {name: strict_schema(prop) for name, prop in value.items()}
+        elif key in ("$defs", "items") or isinstance(value, (dict, list)):
+            out[key] = strict_schema(value)
+        else:
+            out[key] = value
+    if out.get("type") == "object":
+        out["additionalProperties"] = False
+    if hints:
+        out["description"] = f"{out.get('description', '')} ({', '.join(hints)})".strip()
+    return out
+
+
 def submit_diagnosis_tool() -> dict:
     """The tool the model calls to finish. Its input schema is generated from the Diagnosis model."""
     return {
         "name": SUBMIT_DIAGNOSIS,
         "description": (
             "Submit your final diagnosis once you have enough evidence. Call this exactly once, "
-            "when done investigating. Every evidence quote must be copied from a tool result."
+            "when done investigating. Every field is required. Every evidence quote must be copied "
+            "from a tool result."
         ),
-        "input_schema": Diagnosis.model_json_schema(),
+        "input_schema": strict_schema(Diagnosis.model_json_schema()),
+        "strict": True,
     }
 
 

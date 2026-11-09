@@ -53,6 +53,40 @@ async def test_query_logs_collapses_repeats_and_keeps_trace_id():
     assert "untrusted log data" in out
 
 
+def loki_payload_with_exceptions(rows: list[tuple[str, str, str, str, str, int]]) -> dict:
+    """rows: (service, trace_id, message, exception_type, exception_message, age_seconds)"""
+    now = time.time_ns()
+    result = [
+        {
+            "stream": {"service_name": svc, "detected_level": "error", "trace_id": tid, "exception_type": et, "exception_message": em},
+            "values": [[str(now - age * 10**9), msg]],
+        }
+        for svc, tid, msg, et, em, age in rows
+    ]
+    return {"status": "success", "data": {"result": result}}
+
+
+async def test_query_logs_shows_exception_fields_and_keeps_different_exceptions_apart():
+    payload = loki_payload_with_exceptions([
+        ("pricing-service", "a" * 32, "failed to price order", "ValueError", "price mismatch for SKU-1001: quoted 21.99, current 19.99", 90),
+        ("pricing-service", "b" * 32, "failed to price order", "KeyError", "'sku'", 90),
+    ])
+    out = await tools.query_logs(telemetry_backends(lambda r: httpx.Response(200, json=payload)))
+    assert "ValueError: price mismatch for SKU-1001: quoted 21.99, current 19.99" in out
+    assert "KeyError: 'sku'" in out and "2 distinct" in out
+
+
+async def test_query_logs_exemplar_is_old_enough_for_its_trace_to_be_indexed():
+    payload = loki_payload_with_exceptions([
+        ("pricing-service", "1" * 32, "failed to price order", "ValueError", "price mismatch for SKU-1001: quoted 21.99, current 19.99", 5),
+        ("pricing-service", "2" * 32, "failed to price order", "ValueError", "price mismatch for SKU-1001: quoted 21.99, current 19.99", 120),
+        ("pricing-service", "3" * 32, "failed to price order", "ValueError", "price mismatch for SKU-1001: quoted 21.99, current 19.99", 300),
+    ])
+    out = await tools.query_logs(telemetry_backends(lambda r: httpx.Response(200, json=payload)))
+    assert "(x3)" in out and "trace=" + "2" * 32 in out  # newest line that is at least 45s old
+    assert "1" * 32 not in out
+
+
 async def test_query_logs_truncates_long_messages_and_handles_empty():
     long_line = "x" * 5000
     out = await tools.query_logs(telemetry_backends(lambda r: httpx.Response(200, json=loki_payload(("s", "info", "", long_line)))))

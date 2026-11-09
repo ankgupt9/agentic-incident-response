@@ -83,11 +83,12 @@ Day 4, evals, tuning, publish: pytest eval harness and scorer from the labeled c
 - [x] Day 1 done: stack up, 8 placeholder failures fire and resolve alerts (pushed)
 - [ ] Ankur replaces placeholder `failures/catalog.yaml` with real failures
 - [x] Day 2 built (pushed): gateway, MCP telemetry tools, schema, trigger service, tracing, AI health dashboard
-- [x] Core loop written by Claude Code at Ankur's request (agent/loop.py, 16 tests pass)
+- [x] Core loop written by Claude Code at Ankur's request (agent/loop.py, 17 tests pass)
 - [ ] Ankur reviews agent/loop.py and can explain it
 - [x] Fault-enabled log leak removed; change feed with distractors added (87 tests, verified on the live stack)
 - [x] Knowledge store, ingestion, lint and five knowledge tools built, with an off switch for arm A (122 tests, verified through MCP on the live stack)
-- [ ] Day 2 remaining: end-to-end run with knowledge tools off (arm A)
+- [x] Day 2 end-to-end run, arm A (F03 only, informal): real alert woke the agent; after fixing tool and loop defects all 14 diagnoses completed and the 4 read in full found the root cause, at about $0.004 each (docs/baseline-log.md). Not yet a measurement: one failure, scored by hand.
+- [ ] Day 2 remaining: none. Next is Day 3 (knowledge integration, actions, governance), and Ankur's runbooks and catalog entries
 - [ ] Day 2 end-to-end run with knowledge tools off (ablation arm A, telemetry only)
 - [ ] Ankur writes runbooks (about 10 matching failures, 2 to 3 failures with none, about 5 distractors) and service catalog entries in knowledge/
 

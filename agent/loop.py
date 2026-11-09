@@ -32,9 +32,11 @@ from agent.schemas import (
 from agent.toolbox import Toolbox, ToolResult
 
 STEP_LIMIT_MESSAGE = (
-    "Step limit reached. Do not request any more tools. Call submit_diagnosis now with your best "
-    "assessment from the evidence gathered so far, and use a low confidence if the evidence is thin."
+    "Step limit reached. Do not request any more tools; they will be refused. Call submit_diagnosis now "
+    "with your best assessment from the evidence gathered so far, and use a low confidence if the "
+    "evidence is thin."
 )
+STEP_LIMIT_REFUSAL = "step limit reached: tool calls are no longer available. Call submit_diagnosis now."
 NUDGE_MESSAGE = "You have not submitted a diagnosis. Call submit_diagnosis to finish."
 
 
@@ -82,18 +84,20 @@ async def run_diagnosis(
     messages: list[dict] = [
         {"role": "user", "content": alert_prompt(alert.name, alert.status, alert.labels, alert.summary, alert.starts_at)}
     ]
-    submit_tool = submit_diagnosis_tool()
-    tools = toolbox.specs() + [submit_tool]
+    # The tool list is fixed for the whole run. The model's thinking blocks are bound to the
+    # conversation prefix, and the tool list is part of it: changing the list mid-run makes the next
+    # call fail with HTTP 400 ("thinking block is bound to a different conversation").
+    tools = toolbox.specs() + [submit_diagnosis_tool()]
 
-    forced = False  # True once the step cap is hit: only submit_diagnosis is offered from then on
+    forced = False  # True once the step cap is hit: investigation tools are refused from then on
     corrections = 1  # one chance, in total, to fix a bad submission or a reply with no submission
 
     while True:
-        # Step cap: stop offering investigation tools and demand an answer. This is a deliberate
-        # final turn, not an extra step, so it is not counted against max_steps.
+        # Step cap: tell the model to answer now and refuse any further investigation tools. The tools
+        # stay declared (see above); the loop is what enforces the cap. This is a deliberate final
+        # turn, not an extra step, so it is not counted against max_steps.
         if not forced and result.steps >= max_steps:
             forced = True
-            tools = [submit_tool]
             messages.append({"role": "user", "content": STEP_LIMIT_MESSAGE})
 
         try:
@@ -120,9 +124,15 @@ async def run_diagnosis(
 
         # Every tool_use needs a tool_result in the very next user message, and results for
         # parallel calls must travel together in ONE message. gather keeps the original order.
-        offered = {t["name"] for t in tools}
-        result.tool_calls += len(investigation)
-        tool_results = list(await asyncio.gather(*(run_tool(toolbox, c, offered) for c in investigation)))
+        if forced:
+            tool_results = [
+                {"type": "tool_result", "tool_use_id": c.id, "content": STEP_LIMIT_REFUSAL, "is_error": True}
+                for c in investigation
+            ]
+        else:
+            offered = {t["name"] for t in tools}
+            result.tool_calls += len(investigation)
+            tool_results = list(await asyncio.gather(*(run_tool(toolbox, c, offered) for c in investigation)))
 
         if submission is not None:
             try:
@@ -142,9 +152,12 @@ async def run_diagnosis(
                 result.error = None
                 break
         elif forced:
-            # Only submit_diagnosis was offered and the model asked for something else.
+            # Past the cap the model asked for tools instead of submitting. The refusal below tells it
+            # to submit; it gets the one shared correction, then the run fails.
             result.error = "step limit reached without a diagnosis"
-            break
+            if corrections == 0:
+                break
+            corrections -= 1
 
         messages.append({"role": "user", "content": tool_results})
 

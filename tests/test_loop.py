@@ -90,13 +90,16 @@ async def test_unknown_tool_is_reported_to_the_model_not_raised():
     assert gw.calls[-1]["messages"][-1]["content"][0]["is_error"] is True
 
 
-async def test_step_cap_forces_a_final_answer_with_only_submit_available():
+async def test_step_cap_forces_a_final_answer_and_never_changes_the_tool_list():
     looping = [tool_use_response((f"t{i}", "query_logs", {})) for i in range(2)]
     gw = FakeGateway(looping + [submit()])
     result = await run(gw, max_steps=2)
     assert result.status == "forced" and result.diagnosis is not None
     assert len(gw.calls) == 3
-    assert [t["name"] for t in gw.calls[-1]["tools"]] == ["submit_diagnosis"]
+    # Thinking blocks are bound to the conversation prefix, tools included. Changing the list after the
+    # cap made the real API answer HTTP 400, so every call must declare exactly the same tools.
+    assert all(call["tools"] == gw.calls[0]["tools"] for call in gw.calls)
+    assert "Step limit reached" in str(gw.calls[-1]["messages"][-1]["content"])
 
 
 async def test_step_cap_with_no_valid_answer_fails_cleanly():
@@ -181,3 +184,14 @@ async def test_investigation_tool_requested_after_the_cap_is_refused():
 async def test_max_steps_must_be_positive():
     with pytest.raises(ValueError):
         await run_diagnosis(ALERT, FakeGateway([]), toolbox(), max_steps=0)
+
+
+async def test_tools_requested_after_the_cap_are_refused_with_an_explanation_and_not_run():
+    gw = FakeGateway([tool_use_response(("t1", "query_logs", {})), tool_use_response(("t2", "get_trace", {"trace_id": "x"})), submit("s9")])
+    tb = toolbox()
+    result = await run(gw, tb, max_steps=1)
+    # t2 was refused (not executed); the model then submitted, but only one retry slot exists so the run still ends cleanly.
+    assert [name for name, _ in tb.calls] == ["query_logs"]
+    refusal = gw.calls[2]["messages"][-1]["content"][0]
+    assert refusal["is_error"] is True and "step limit" in refusal["content"]
+    assert result.status == "forced"

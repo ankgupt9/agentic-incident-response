@@ -33,7 +33,11 @@ class AnthropicGateway:
         try:
             resp = await self._client.messages.create(**kwargs)
         except anthropic.APIStatusError as exc:
-            raise GatewayError(f"model call failed: HTTP {exc.status_code}", retryable=exc.status_code >= 500 or exc.status_code == 429) from exc
+            # The API's error text describes the request problem (never the key); keep it short so failures are diagnosable.
+            raise GatewayError(
+                f"model call failed: HTTP {exc.status_code}: {str(exc.message)[:300]}",
+                retryable=exc.status_code >= 500 or exc.status_code == 429,
+            ) from exc
         except anthropic.APIConnectionError as exc:
             raise GatewayError("model call failed: connection error", retryable=True) from exc
         latency = time.perf_counter() - start

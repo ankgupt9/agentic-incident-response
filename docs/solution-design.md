@@ -441,7 +441,7 @@ stateDiagram-v2
     Failed --> [*]
 ```
 
-`tests/test_loop.py` holds ten scenarios the loop must satisfy: happy path, parallel tool calls answered in one message, tool errors passed to the model, unknown tools, step-cap forcing, failure after the cap, one retry on a bad diagnosis, failure after two, cost summing, and gateway failure. The loop in `agent/loop.py` passes all ten, and six more tests cover a text-only reply, a bad submission sent alongside another tool call, a tool that raises, a tool requested after the cap, and invalid `max_steps`.
+`tests/test_loop.py` holds ten scenarios the loop must satisfy: happy path, parallel tool calls answered in one message, tool errors passed to the model, unknown tools, step-cap forcing, failure after the cap, one retry on a bad diagnosis, failure after two, cost summing, and gateway failure. The loop in `agent/loop.py` passes all ten, and seven more cover a text-only reply, a bad submission sent alongside another tool call, a tool that raises, a tool requested after the cap, invalid `max_steps`, and a tool list that never changes during a run (a real-API failure the mocks could not show; see [baseline-log.md](baseline-log.md)).
 
 ### Alert trigger
 
@@ -503,7 +503,7 @@ An MCP server (`mcp_server/server.py`, stdio) exposes three read-only tools. The
 
 | Tool | Inputs | Backend | Behavior |
 |---|---|---|---|
-| `query_logs` | service, level, contains, minutes (1-60), limit (1-100) | Loki | Identical messages collapse into one line with a count. Each line shows its trace id. Messages capped at 300 characters. Output labeled as untrusted data. |
+| `query_logs` | service, level, contains, minutes (1-60), limit (1-100) | Loki | Identical messages collapse into one line with a count. Exception type and message are shown. Each line shows a trace id, chosen from a line at least 45 seconds old so Tempo has indexed the trace. Messages capped at 300 characters. Output labeled as untrusted data. |
 | `get_trace` | trace_id (32 hex characters) | Tempo | Spans in time order with service, duration, error flag, HTTP status and exceptions. Up to 60 spans. |
 | `query_metrics` | query (PromQL), minutes (1-120) | Prometheus | Each series summarized as last, min, max, first. Up to 10 series. |
 
@@ -648,7 +648,7 @@ An ablation compares telemetry only against telemetry plus knowledge tools, whic
 | Actions, governance, kill switch | Planned (Day 3) | | |
 | Evals, ablation, README, demo | Planned (Day 4) | | |
 
-Test totals: 122 passing, 1 skipped (real golden queries, until runbooks exist).
+Test totals: 129 passing, 1 skipped (real golden queries, until runbooks exist).
 
 ## C3. Ports and endpoints
 

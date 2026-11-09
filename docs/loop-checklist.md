@@ -22,7 +22,8 @@ Claude requests tools; the loop runs them. Claude remembers nothing between call
 - **Tool errors are data.** Return `{"type": "tool_result", "tool_use_id": ..., "content": text, "is_error": True}` and keep going. Never let a failing tool crash the loop.
 - **Unknown tool names.** The model can request a tool you did not offer. Answer with an error result.
 - **Bad submission.** If validation fails, send the error text back as an `is_error` tool_result so the model can fix it. Allow exactly one retry.
-- **Step cap.** At `max_steps`, stop offering investigation tools: send only `submit_diagnosis` plus a message saying the limit is reached. Mark the result `forced`. If that still yields no valid diagnosis, `failed`.
+- **Step cap.** At `max_steps`, add a message saying the limit is reached and refuse any further investigation tools yourself (return an error result). Mark a valid answer `forced`. If the model still asks for tools or gives no diagnosis after one correction, `failed`.
+- **Never change the tool list during a run.** The model's thinking blocks are bound to the conversation prefix, and the tool list is part of it. Removing tools to force an answer made the real API return HTTP 400 ("thinking block is bound to a different conversation") whenever the model had thought before a tool call. Only append to the history, and enforce limits in the loop, not by editing what you declared. (Found in the first live run; mocks cannot catch it.)
 - **Model ends without submitting.** A text-only reply with no tool call is not a diagnosis. Nudge once or fail; decide and defend your choice.
 - **Gateway errors.** `GatewayError` should produce a `failed` result with the message, not an exception.
 - **Bookkeeping.** Sum tokens, cost and latency into the result; count steps (model calls) and tool calls.
