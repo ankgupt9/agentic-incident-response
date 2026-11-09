@@ -11,6 +11,12 @@ Design: [docs/knowledge-design.md](../docs/knowledge-design.md).
 
 Contracts (message and API shapes) are generated from the code at ingest time. The change feed comes from the simulator. Neither is written by hand.
 
+## Provenance (read this before quoting any result)
+
+The runbooks and catalog entries currently in this folder are **drafts written by Claude Code** from the simulator's behavior, so the first knowledge ablation could run. They are marked `status: draft` and are not Ankur's experience. Anything published from an ablation that used them must say so. Replace or rewrite them from real experience, then change the status to `active`; the tests and golden queries will tell you if search still finds them.
+
+The set follows the planned mix: runbooks for six of the eight failures (price mismatch, pricing outage, broker connection lost, message shape, missing SKU), **none** for the slow-quote and stalled-consumer failures on purpose, and five unrelated runbooks as distractors (one, RB-008, is a near miss for slow quotes).
+
 ## Rules
 
 - **Describe symptoms and diagnosis steps**, as a real runbook would. Never name a failure ID (F01...) or a fault switch (names in `failures/catalog.yaml`), and never write the word "inject". Lint fails the build if you do.

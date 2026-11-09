@@ -218,3 +218,42 @@ async def test_budget_forces_a_final_answer_like_the_step_cap():
     result = await run_diagnosis(ALERT, gw, toolbox(), budget_usd=0.01)
     assert result.status == "forced"
     assert "Budget limit reached" in str(gw.calls[-1]["messages"][-1]["content"])
+
+
+def knowledge_toolbox():
+    return FakeToolbox({"query_logs": "log line", "search_runbooks": "1 runbook(s) matched.\n[RB-001] Price mismatch | owner ankur | reviewed 2026-11-09"})
+
+
+async def test_citing_a_knowledge_id_the_tools_returned_is_accepted():
+    gw = FakeGateway([tool_use_response(("t1", "search_runbooks", {"query": "price"})), submit(knowledge_refs=["RB-001"])])
+    result = await run(gw, knowledge_toolbox())
+    assert result.status == "complete" and result.diagnosis.knowledge_refs == ["RB-001"]
+
+
+async def test_citing_an_id_no_tool_returned_is_sent_back_once_for_correction():
+    gw = FakeGateway([tool_use_response(("t1", "search_runbooks", {"query": "price"})), submit(knowledge_refs=["RB-099"]), submit("s2", knowledge_refs=["RB-001"])])
+    result = await run(gw, knowledge_toolbox())
+    assert result.status == "complete"
+    feedback = gw.calls[-1]["messages"][-1]["content"][0]
+    assert feedback["is_error"] is True and "RB-099" in feedback["content"] and "no tool returned" in feedback["content"]
+
+
+async def test_citing_ids_that_were_never_retrieved_twice_fails_the_run():
+    gw = FakeGateway([submit(knowledge_refs=["RB-001"]), submit("s2", knowledge_refs=["RB-001"])])  # no search was done
+    result = await run(gw, knowledge_toolbox())
+    assert result.status == "failed" and "knowledge_refs" in result.error
+
+
+async def test_tool_outputs_are_kept_for_the_evals():
+    gw = FakeGateway([tool_use_response(("t1", "query_logs", {})), submit()])
+    result = await run(gw, knowledge_toolbox())
+    assert result.observed == ["log line"] and "observed" not in result.model_dump()
+
+
+async def test_prompt_guidance_appears_only_for_the_tool_groups_present():
+    gw = FakeGateway([submit()])
+    await run(gw, FakeToolbox({"query_logs": "x"}))
+    assert "Knowledge tools" not in gw.calls[0]["system"] and "propose_" not in gw.calls[0]["system"]
+    gw = FakeGateway([submit()])
+    await run(gw, FakeToolbox({"query_logs": "x", "search_runbooks": "x", "propose_replay_message": "x"}))
+    assert "Knowledge tools" in gw.calls[0]["system"] and "nothing runs until a person approves" in gw.calls[0]["system"]

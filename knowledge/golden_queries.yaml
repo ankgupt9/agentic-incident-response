@@ -1,10 +1,17 @@
 # Search queries paired with the runbook ids that must appear in the top 3 results.
-# Ankur adds entries as runbooks are written. tests/test_knowledge_golden.py checks them.
-#
-# queries:
-#   - query: orders rejected by the consumer with a price mismatch
-#     expect: [RB-001]
-#   - query: queue depth keeps climbing but orders are accepted
-#     expect: [RB-002]
-#     service: pricing-service        # optional: restrict to runbooks that apply to a service
-queries: []
+# tests/test_knowledge_golden.py checks them against the real runbooks.
+queries:
+  - query: orders rejected by the consumer with a price mismatch, quoted and current price differ
+    expect: [RB-001]
+  - query: 502 on every order and the pricing quote endpoint returns 503
+    expect: [RB-002]
+  - query: 502 after the quote succeeded, broker connection lost while publishing
+    expect: [RB-003]
+  - query: consumer KeyError missing sku field or JSON decode error
+    expect: [RB-004]
+  - query: orders for one sku fail, unknown sku, quote endpoint returns 404
+    expect: [RB-005]
+  - query: tls handshake failure certificate expired
+    expect: [RB-006]
+  - query: submit latency p95 high but no errors
+    expect: [RB-008]

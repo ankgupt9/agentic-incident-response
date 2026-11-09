@@ -1,4 +1,4 @@
-# Drafted from the code by Claude Code. Ankur: complete known_quirks and anything the code does not say, then set status: active.
+# DRAFT written by Claude Code from the simulator's behavior, for Ankur to replace with experience-based content.
 id: rabbitmq
 owner: ankur
 last_reviewed: 2026-11-09
@@ -12,6 +12,7 @@ configuration:
   deployment: single node, no clustering
 slo:
   queue_backlog: "under 20 ready messages; alert OrderQueueBacklog fires after 30 seconds above that"
-known_quirks: []
+known_quirks:
+  - There is no dead-letter queue, so messages a consumer rejects are discarded.
 escalation:
   ask: ankur

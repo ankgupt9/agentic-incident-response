@@ -15,13 +15,14 @@ again every turn. Full design and test scenarios: docs/loop-checklist.md, tests/
 """
 
 import asyncio
+import re
 import time
 from collections.abc import Awaitable, Callable
 
 from pydantic import ValidationError
 
 from agent.gateway import GatewayError, ModelGateway, ModelResponse, ToolCall
-from agent.prompts import SYSTEM_PROMPT, alert_prompt
+from agent.prompts import alert_prompt, build_system_prompt
 from agent.schemas import (
     SUBMIT_DIAGNOSIS,
     Alert,
@@ -43,6 +44,8 @@ BUDGET_MESSAGE = (
     "evidence is thin."
 )
 STEP_LIMIT_REFUSAL = "step limit reached: tool calls are no longer available. Call submit_diagnosis now."
+# Knowledge entries are cited by the ids the knowledge tools print, e.g. [RB-001] [svc:pricing-service] [CHG-2003].
+KNOWLEDGE_ID = re.compile(r"\[(RB-\d{3}|svc:[a-z0-9-]+|contract:[a-z0-9-]+|CHG-\d+)\]")
 NUDGE_MESSAGE = "You have not submitted a diagnosis. Call submit_diagnosis to finish."
 
 
@@ -97,6 +100,8 @@ async def run_diagnosis(
     # conversation prefix, and the tool list is part of it: changing the list mid-run makes the next
     # call fail with HTTP 400 ("thinking block is bound to a different conversation").
     tools = toolbox.specs() + [submit_diagnosis_tool()]
+    system = build_system_prompt({t["name"] for t in tools})
+    retrieved: set[str] = set()  # knowledge ids a tool actually returned in this run
 
     forced = False  # True once the step cap is hit: investigation tools are refused from then on
     corrections = 1  # one chance, in total, to fix a bad submission or a reply with no submission
@@ -115,7 +120,7 @@ async def run_diagnosis(
             messages.append({"role": "user", "content": BUDGET_MESSAGE if over_budget and result.steps < max_steps else STEP_LIMIT_MESSAGE})
 
         try:
-            response = await gateway.complete(system=SYSTEM_PROMPT, messages=messages, tools=tools)
+            response = await gateway.complete(system=system, messages=messages, tools=tools)
         except GatewayError as exc:
             result.error = str(exc)
             break
@@ -147,24 +152,33 @@ async def run_diagnosis(
             offered = {t["name"] for t in tools}
             result.tool_calls += len(investigation)
             tool_results = list(await asyncio.gather(*(run_tool(toolbox, c, offered) for c in investigation)))
+            for block in tool_results:
+                result.observed.append(block["content"])
+                if not block["is_error"]:
+                    retrieved.update(KNOWLEDGE_ID.findall(block["content"]))
 
         if submission is not None:
+            problem = None
             try:
-                result.diagnosis = parse_diagnosis(submission.input)
+                diagnosis = parse_diagnosis(submission.input)
             except ValidationError as exc:
                 problem = validation_message(exc)
-                result.error = f"invalid diagnosis: {problem}"
-                if corrections == 0:
-                    break
-                corrections -= 1
-                # Send the validation errors back so the model can correct its submission.
-                tool_results.append(
-                    {"type": "tool_result", "tool_use_id": submission.id, "content": problem, "is_error": True}
-                )
             else:
+                # Citation check: a diagnosis may only cite knowledge ids a tool returned in this run.
+                uncited = [r for r in diagnosis.knowledge_refs if r not in retrieved]
+                if uncited:
+                    problem = f"knowledge_refs cites {uncited}, which no tool returned in this run. Cite only ids you retrieved, or use an empty list."
+            if problem is None:
+                result.diagnosis = diagnosis
                 result.status = "forced" if forced else "complete"
                 result.error = None
                 break
+            result.error = f"invalid diagnosis: {problem}"
+            if corrections == 0:
+                break
+            corrections -= 1
+            # Send the problem back so the model can correct its submission.
+            tool_results.append({"type": "tool_result", "tool_use_id": submission.id, "content": problem, "is_error": True})
         elif forced:
             # Past the cap the model asked for tools instead of submitting. The refusal below tells it
             # to submit; it gets the one shared correction, then the run fails.

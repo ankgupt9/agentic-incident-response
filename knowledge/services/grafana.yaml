@@ -1,0 +1,13 @@
+# DRAFT written by Claude Code from the simulator's behavior, for Ankur to replace with experience-based content.
+id: grafana
+owner: ankur
+last_reviewed: 2026-11-09
+status: draft
+purpose: Dashboards and alert rules for the order flow and for the agent itself. Alerts about the order flow are sent to the agent trigger.
+depends_on: []
+depended_on_by: []
+interfaces:
+  http: ["dashboards and alerting on port 3000"]
+known_quirks: []
+escalation:
+  ask: ankur

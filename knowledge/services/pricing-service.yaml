@@ -1,4 +1,4 @@
-# Drafted from the code by Claude Code. Ankur: complete known_quirks and anything the code does not say, then set status: active.
+# DRAFT written by Claude Code from the simulator's behavior, for Ankur to replace with experience-based content.
 id: pricing-service
 owner: ankur
 last_reviewed: 2026-11-09
@@ -10,10 +10,13 @@ interfaces:
   http: ["GET /quote/{sku}"]
   consumes: ["orders queue"]
 configuration:
+  quote_cache_refresh: every 15 minutes
   consumer_prefetch: 1 message at a time
   rejected_messages: rejected without requeue, and there is no dead-letter queue
 slo:
   consumer_error_rate: "under 20% over 1 minute; alert PricingConsumerErrorRateHigh fires after 30 seconds above that"
-known_quirks: []
+known_quirks:
+  - Quotes come from a cache that refreshes on a timer, while the queue consumer validates against the live price list, so the two can disagree between refreshes.
+  - A rejected order is dropped, not retried, so it is lost unless someone replays it.
 escalation:
   ask: ankur

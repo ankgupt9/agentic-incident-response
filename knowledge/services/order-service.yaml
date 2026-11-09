@@ -1,4 +1,4 @@
-# Drafted from the code by Claude Code. Ankur: complete known_quirks and anything the code does not say, then set status: active.
+# DRAFT written by Claude Code from the simulator's behavior, for Ankur to replace with experience-based content.
 id: order-service
 owner: ankur
 last_reviewed: 2026-11-09
@@ -14,6 +14,8 @@ configuration:
   queue_delivery: persistent messages on a durable queue
 slo:
   submit_error_rate: "under 20% over 1 minute; alert OrderSubmitErrorRateHigh fires after 30 seconds above that"
-known_quirks: []
+known_quirks:
+  - A 502 from POST /orders means either the quote call or the publish step failed; the order-service log says which.
+  - A quote slower than 5 seconds counts as a failure and returns 502.
 escalation:
   ask: ankur

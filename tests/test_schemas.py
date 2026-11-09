@@ -10,6 +10,7 @@ VALID = {
     "confidence": 0.8,
     "affected_services": ["pricing-service"],
     "recommended_action": "Refresh the quote cache.",
+    "knowledge_refs": [],
 }
 
 

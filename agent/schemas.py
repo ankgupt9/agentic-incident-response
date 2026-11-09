@@ -33,6 +33,7 @@ class Diagnosis(BaseModel):
     confidence: float = Field(ge=0, le=1, description="0 to 1. Use below 0.5 when evidence is thin")
     affected_services: list[str] = Field(min_length=1)
     recommended_action: str = Field(description="Proposed fix as text only. Nothing is executed")
+    knowledge_refs: list[str] = Field(description="Ids of knowledge entries you relied on (RB-001, svc:pricing-service, CHG-2003). Empty list if none. Cite only ids a tool returned in this run")
 
 
 class DiagnosisResult(BaseModel):
@@ -50,6 +51,9 @@ class DiagnosisResult(BaseModel):
     output_tokens: int = 0
     cost_usd: float = 0.0
     latency_s: float = 0.0
+    knowledge_version: str | None = None
+    # Tool outputs the model saw, kept in process for the evals (grounding checks). Not serialized.
+    observed: list[str] = Field(default_factory=list, exclude=True)
 
 
 # Keywords the API's strict tool mode rejects. Pydantic still enforces them when we validate the input.
