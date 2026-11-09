@@ -85,6 +85,12 @@ async def main_async(args) -> int:
 
         arms[arm], runtimes[arm] = make_runner(rt, gateway, factory), rt
     judge_gw = AnthropicGateway(Settings(model=args.judge_model, effort="low", max_tokens=1024))
+    try:  # fail fast if the API is unreachable, instead of discovering it 30 minutes in
+        await judge_gw.complete(system="Reply with one word.", messages=[{"role": "user", "content": "ping"}], tools=[])
+    except Exception as exc:
+        print(f"preflight failed: the model API is not reachable ({exc})")
+        await store.drop_schema()
+        return 1
 
     env = LiveEnvironment()
     results_path = run_dir / "results.jsonl"

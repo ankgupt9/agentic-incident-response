@@ -4,7 +4,7 @@ How the agent gets the system knowledge that an on-call engineer would otherwise
 
 | | |
 |---|---|
-| Status | Machinery built (Day 2): Postgres store, ingestion, lint, versioning, five tools, off switch, golden-query tests. Content not written yet: no runbooks, and the service catalog entries are drafts. Past incidents, `ask_human`, citations and audit logging are not built (see section 12). |
+| Status | Built: Postgres store, ingestion, lint, versioning, five tools, off switch, golden-query tests, `knowledge_refs` with a citation check, audit of every lookup. Content is drafts by Claude Code, not field experience. Past incidents and `ask_human` are not built. |
 | Why it exists | Telemetry explains what happened. Knowledge explains why. See [solution-design.md](solution-design.md) section A1. |
 | Owner of content | Ankur (runbooks, service catalog). Claude Code builds the machinery. |
 
@@ -306,10 +306,10 @@ The headline result for the write-up is the ablation: how much accuracy, and at 
 | Tools: `search_runbooks`, `get_runbook`, `get_service_info`, `get_contract`, `get_recent_changes` | Built | `mcp_server/knowledge_tools.py`, registered in `mcp_server/server.py` |
 | Off switch for the telemetry-only arm | Built | `AGENT_KNOWLEDGE_TOOLS=off` (setting) and `KNOWLEDGE_TOOLS=off` (server) |
 | Golden-query retrieval tests, fixture set and a hook for Ankur's real queries | Built | `tests/test_knowledge_golden.py`, `knowledge/golden_queries.yaml` |
-| Runbooks | **Ankur** | `knowledge/runbooks/` (template provided) |
-| Service catalog entries | Drafted from the code; Ankur completes | `knowledge/services/` |
-| `knowledge_refs` and citation check | Day 3 | |
-| Knowledge lookups in the audit log; knowledge version on traces | Day 3 | |
+| Runbooks | 10 drafts written by Claude Code (6 failures covered, 2 on purpose not, 5 distractors incl. one near miss). **Ankur to replace** | `knowledge/runbooks/` |
+| Service catalog entries | Drafts written by Claude Code from the simulator's behavior. **Ankur to replace** | `knowledge/services/` |
+| `knowledge_refs` and citation check (a diagnosis may only cite ids a tool returned in the run) | Built | `agent/schemas.py`, `agent/loop.py` |
+| Knowledge lookups in the audit log; knowledge version on traces and results | Built | `agent/governed.py`, `agent/runner.py` |
 | `search_past_incidents`, `ask_human` | Stretch, first to cut | |
 
 Notes from building it:

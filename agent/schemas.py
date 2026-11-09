@@ -62,6 +62,7 @@ class DiagnosisResult(BaseModel):
     output_tokens: int = 0
     cost_usd: float = 0.0
     latency_s: float = 0.0
+    repairs: list[str] = Field(default_factory=list)  # fields where leaked tool-call markup was trimmed
     knowledge_version: str | None = None
     # Tool outputs the model saw, kept in process for the evals (grounding checks). Not serialized.
     observed: list[str] = Field(default_factory=list, exclude=True)
@@ -97,6 +98,26 @@ def strict_schema(node):
     if hints:
         out["description"] = f"{out.get('description', '')} ({', '.join(hints)})".strip()
     return out
+
+
+MIN_REPAIRED_CHARS = 20
+
+
+def repair_markup_leak(payload: dict) -> tuple[dict, list[str]]:
+    """Trim tool-call markup that leaked into root_cause or recommended_action.
+
+    The real text comes before the leak; what follows is the next parameter written into the wrong
+    place. Cut at the first marker. A field left with almost nothing is left alone, so validation rejects it.
+    Returns the payload and the names of the fields that were trimmed (recorded, so repairs stay visible).
+    """
+    fixed, repaired = dict(payload), []
+    for name in ("root_cause", "recommended_action"):
+        text = fixed.get(name)
+        match = _MARKUP_LEAK.search(text) if isinstance(text, str) else None
+        if match and len(text[: match.start()].strip()) >= MIN_REPAIRED_CHARS:
+            fixed[name] = text[: match.start()].rstrip()
+            repaired.append(name)
+    return fixed, repaired
 
 
 def submit_diagnosis_tool() -> dict:

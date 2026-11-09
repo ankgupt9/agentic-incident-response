@@ -39,7 +39,8 @@ class AnthropicGateway:
                 retryable=exc.status_code >= 500 or exc.status_code == 429,
             ) from exc
         except anthropic.APIConnectionError as exc:
-            raise GatewayError("model call failed: connection error", retryable=True) from exc
+            cause = type(exc.__cause__).__name__ if exc.__cause__ else type(exc).__name__
+            raise GatewayError(f"model call failed: connection error ({cause})", retryable=True) from exc
         latency = time.perf_counter() - start
 
         content = [block.model_dump(exclude_none=True) for block in resp.content]

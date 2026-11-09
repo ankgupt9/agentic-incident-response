@@ -16,12 +16,16 @@ def fmt(x, spec=".2f") -> str:
 
 def render_report(meta: dict, records: list[dict], guardrail_runs: list[dict], suite: dict | None) -> str:
     arms = sorted({r["arm"] for r in records})
-    per_arm = {a: [r for r in records if r["arm"] == a] for a in arms}
+    per_arm_all = {a: [r for r in records if r["arm"] == a] for a in arms}
+    # Runs that never reached the model for reasons outside the agent (network, API overload) say nothing
+    # about accuracy: they are counted and shown, but excluded from every accuracy figure.
+    per_arm = {a: [r for r in per_arm_all[a] if not r.get("infra_failure")] for a in arms}
     summaries = {a: summarize(per_arm[a]) for a in arms}
     out = [f"# Eval report", "", f"Run `{meta['run_id']}` on {meta['date']}. Commit `{meta['commit']}`.", ""]
     out += ["## Setup", "",
             f"- Agent model: `{meta['model']}` (effort medium). Judge model: `{meta['judge_model']}`, blind to the arm.",
-            f"- {meta['failures']} failures, {meta['repeats']} repeats per arm, so n = {summaries[arms[0]]['n'] if arms else 0} diagnoses per arm. Both arms diagnose the same live evidence for each failure.",
+            f"- {meta['failures']} failures, {meta['repeats']} repeats per arm: {len(per_arm_all[arms[0]]) if arms else 0} runs per arm. Both arms diagnose the same live evidence for each failure.",
+            "- A run that fails for reasons outside the agent (network, API overload) is retried up to 3 times with a pause, and excluded from accuracy if it still fails.",
             "- Arm A has `query_logs`, `get_trace` and `query_metrics`. Arm B adds runbooks, the service catalog, contracts and recent changes.",
             f"- Knowledge version in arm B: `{meta.get('knowledge_version') or 'n/a'}`.", ""]
     out += ["> **Read before quoting.** The failure catalog is a placeholder, and the runbooks and catalog entries are drafts written by Claude Code from the simulator's behavior, not from field experience. "
@@ -29,11 +33,15 @@ def render_report(meta: dict, records: list[dict], guardrail_runs: list[dict], s
 
     out += ["## Headline", "", "| | " + " | ".join(ARM_NAMES.get(a, a) for a in arms) + " |", "|---|" + "---|" * len(arms)]
     rows = [
-        ("Root cause correct", lambda a, s: frac(sum(r["root_cause"] == "correct" for r in per_arm[a]), s["n"])),
+        ("Runs scored", lambda a, s: str(s["n"])),
+        ("Infrastructure failures (excluded)", lambda a, s: str(len(per_arm_all[a]) - len(per_arm[a]))),
+        ("Completed with a valid diagnosis", lambda a, s: frac(sum(r["completed"] for r in per_arm[a]), s["n"])),
+        ("Root cause correct, of all scored runs", lambda a, s: frac(sum(r["root_cause"] == "correct" for r in per_arm[a]), s["n"])),
+        ("Root cause correct, among completed runs", lambda a, s: frac(sum(r["root_cause"] == "correct" for r in per_arm[a] if r["completed"]), sum(r["completed"] for r in per_arm[a]))),
+        ("Leaked tool-call markup trimmed", lambda a, s: f"{s['repaired']} runs"),
         ("Root cause correct or partial", lambda a, s: frac(sum(r["root_cause"] != "incorrect" for r in per_arm[a]), s["n"])),
         ("Mean score (correct 1, partial 0.5)", lambda a, s: fmt(s["accuracy_lenient"])),
         ("Fix quality (good 1, partial 0.5)", lambda a, s: fmt(s["fix_quality"])),
-        ("Completed with a valid diagnosis", lambda a, s: frac(sum(r["completed"] for r in per_arm[a]), s["n"])),
         ("Evidence quotes found in tool output", lambda a, s: fmt(s["grounding"])),
         ("Names the right service", lambda a, s: fmt(s["service_match"])),
         ("Mean confidence", lambda a, s: fmt(s["mean_confidence"])),
@@ -51,7 +59,7 @@ def render_report(meta: dict, records: list[dict], guardrail_runs: list[dict], s
 
     out += ["## By failure", "", "Strictly correct diagnoses out of repeats. A runbook exists for the failure where marked.", "",
             "| Failure | Runbook for it | " + " | ".join(ARM_NAMES.get(a, a) for a in arms) + " |", "|---|---|" + "---|" * len(arms)]
-    for fid, group in sorted(by_key(records, lambda r: r["failure_id"]).items()):
+    for fid, group in sorted(by_key([r for rs in per_arm.values() for r in rs], lambda r: r["failure_id"]).items()):
         cells = []
         for a in arms:
             rs = [r for r in group if r["arm"] == a]
@@ -95,3 +103,28 @@ def render_report(meta: dict, records: list[dict], guardrail_runs: list[dict], s
             "- The judge compares the diagnosis with the labeled root cause and fix. Strict means 'correct' only; partial credit is shown separately.",
             "- Small n: a difference of one or two diagnoses is noise. Repeated runs show the spread but do not make the catalog more realistic.", ""]
     return "\n".join(out)
+
+
+def main() -> int:
+    """Re-render a report from a saved run: python -m evals.report evals/results/<run-id>"""
+    import json
+    import sys
+    from pathlib import Path
+
+    run_dir = Path(sys.argv[1])
+    meta = json.loads((run_dir / "meta.json").read_text())
+    records = [json.loads(line) for line in (run_dir / "results.jsonl").read_text().splitlines() if line.strip()]
+    for r in records:  # records from before infrastructure failures were tracked
+        if "infra_failure" not in r:
+            from evals.scoring import is_infra_failure
+
+            r["infra_failure"] = (r["status"] == "failed") and is_infra_failure(r.get("error"))
+    guard = json.loads((run_dir / "guardrails.json").read_text()) if (run_dir / "guardrails.json").is_file() else []
+    text = render_report(meta, records, guard, meta.get("suite"))
+    (run_dir / "report.md").write_text(text)
+    print(text)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

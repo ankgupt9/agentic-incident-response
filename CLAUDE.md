@@ -75,22 +75,19 @@ Day 4, evals, tuning, publish: pytest eval harness and scorer from the labeled c
 
 ## Status (update this section as work progresses)
 
-- [x] Docker, Python, Git installed and verified
-- [x] GitHub repo created and cloned in VS Code
-- [x] Anthropic API key saved in `.env` by Ankur (credit and spend limit: confirm in Console)
-- [x] `.gitignore` contains `.env` and `git status` confirms `.env` is ignored
-- [x] Claude Code installed and running in this repo
-- [x] Day 1 done: stack up, 8 placeholder failures fire and resolve alerts (pushed)
-- [ ] Ankur replaces placeholder `failures/catalog.yaml` with real failures
-- [x] Day 2 built (pushed): gateway, MCP telemetry tools, schema, trigger service, tracing, AI health dashboard
-- [x] Core loop written by Claude Code at Ankur's request (agent/loop.py, 17 tests pass)
-- [ ] Ankur reviews agent/loop.py and can explain it
-- [x] Fault-enabled log leak removed; change feed with distractors added (87 tests, verified on the live stack)
-- [x] Knowledge store, ingestion, lint and five knowledge tools built, with an off switch for arm A (122 tests, verified through MCP on the live stack)
-- [x] Day 2 end-to-end run, arm A (F03 only, informal): real alert woke the agent; after fixing tool and loop defects all 14 diagnoses completed and the 4 read in full found the root cause, at about $0.004 each (docs/baseline-log.md). Not yet a measurement: one failure, scored by hand.
-- [ ] Day 2 remaining: none. Next is Day 3 (knowledge integration, actions, governance), and Ankur's runbooks and catalog entries
-- [ ] Day 2 end-to-end run with knowledge tools off (ablation arm A, telemetry only)
-- [ ] Ankur writes runbooks (about 10 matching failures, 2 to 3 failures with none, about 5 distractors) and service catalog entries in knowledge/
+- [x] Day 1: simulated enterprise, observability stack, failure injector (pushed)
+- [x] Day 2: agent core, gateway, MCP telemetry tools, schema, trigger, tracing, AI Health dashboard, core loop (pushed)
+- [x] First live run (arm A, F03): fixed two tool defects and two agent bugs it exposed (docs/baseline-log.md) (pushed)
+- [x] Knowledge layer: Postgres store, ingestion and lint, five tools, off switch, `knowledge_refs` with citation check, 10 draft runbooks and 4 draft catalog entries
+- [x] Governance: append-only audit log, guardrails and allowlist, injection filter, kill switch, budgets, propose-only actions, approval gate (API and page), admin token, agent alert rules and dashboard panels
+- [x] Evals: harness, blind judge, calibration, two-arm ablation, live prompt-injection scenario, report (docs/eval-report.md)
+- [x] Agent containerized; `docker compose up -d --build` starts everything; README with OWASP and NIST mapping and a POC-to-production section; demo script
+- [ ] Ankur replaces the placeholder `failures/catalog.yaml` with real failures
+- [ ] Ankur replaces the draft runbooks and catalog entries in `knowledge/` with experience-based ones (they are Claude Code drafts; any published ablation must say so)
+- [ ] Ankur reviews every line of the action tools and guardrails (`agent/actions.py`, `proposals.py`, `governed.py`, `guardrails.py`, `killswitch.py`, `audit.py`, `admin_api.py`) and `agent/loop.py`
+- [ ] Ankur creates a GitHub token scoped to this repo if real draft PRs are wanted (without it they stay dry-run)
+- [ ] Re-run `python -m evals.run` on the real content and publish the numbers
+- [ ] Optional, not built: past-incident search, `ask_human`, the outcome-capture loop, LangGraph port
 
 ## First task for Claude Code
 

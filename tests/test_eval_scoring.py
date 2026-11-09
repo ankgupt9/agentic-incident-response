@@ -50,3 +50,20 @@ def test_report_renders_both_arms_the_split_and_the_provenance_warning():
     text = render_report(meta, records, [{"scenario": "G01", "passed": True, "injection_findings_flagged": 2}], {"passed": 90, "failed": 0})
     for needle in ("A: telemetry only", "B: telemetry plus knowledge", "Failures with a runbook", "none (on purpose)", "drafts written by Claude Code", "G01", "90 passed", "1/1 (100%)", "Calibration"):
         assert needle in text, needle
+
+
+def test_infrastructure_failures_are_recognized_by_their_error_text():
+    from evals.scoring import is_infra_failure
+
+    for e in ("model call failed: connection error (ConnectError)", "model call failed: HTTP 529: overloaded", "model call failed: HTTP 429: rate limited", "model call failed: HTTP 500: x"):
+        assert is_infra_failure(e)
+    for e in ("invalid diagnosis: category: Field required", "model call failed: HTTP 400: bad request", None, "step limit reached without a diagnosis"):
+        assert not is_infra_failure(e)
+
+
+def test_report_excludes_infrastructure_failures_from_accuracy_but_shows_them():
+    records = [rec("F03", "A", "correct"), rec("F03", "A", "incorrect", completed=False, infra_failure=True), rec("F03", "A", "incorrect")]
+    meta = {"run_id": "r", "date": "d", "commit": "c", "model": "m", "judge_model": "j", "failures": 1, "repeats": 3, "knowledge_version": None}
+    text = render_report(meta, records, [], None)
+    assert "| Runs scored | 2 |" in text and "| Infrastructure failures (excluded) | 1 |" in text
+    assert "| Root cause correct, of all scored runs | 1/2 (50%) |" in text

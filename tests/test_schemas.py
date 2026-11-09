@@ -99,3 +99,16 @@ def test_tool_call_markup_in_a_text_field_is_rejected_so_the_model_can_correct_i
     # log text with angle brackets inside evidence is legitimate and untouched
     ok = parse_diagnosis({**VALID, "evidence": [{"source": "logs", "reference": "r", "quote": "error=<AMQPConnectionError: ('connection to broker lost',)>"}]})
     assert ok.evidence[0].quote.startswith("error=<AMQP")
+
+
+def test_leaked_markup_is_trimmed_and_recorded_but_an_empty_remainder_is_left_for_validation_to_reject():
+    from agent.schemas import repair_markup_leak
+
+    leaked = "The quote cache refresh interval was lengthened so quotes went stale.</root_cause>\n<parameter name=\"category\">stale_quote_cache"
+    fixed, repaired = repair_markup_leak({**VALID, "root_cause": leaked})
+    assert repaired == ["root_cause"] and fixed["root_cause"] == "The quote cache refresh interval was lengthened so quotes went stale."
+    assert parse_diagnosis(fixed).root_cause.endswith("went stale.")
+    untouched, none = repair_markup_leak({**VALID, "root_cause": "</root_cause>junk"})
+    assert none == [] and untouched["root_cause"] == "</root_cause>junk"
+    with pytest.raises(ValidationError):
+        parse_diagnosis(untouched)

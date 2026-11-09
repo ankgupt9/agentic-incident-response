@@ -257,3 +257,12 @@ async def test_prompt_guidance_appears_only_for_the_tool_groups_present():
     gw = FakeGateway([submit()])
     await run(gw, FakeToolbox({"query_logs": "x", "search_runbooks": "x", "propose_replay_message": "x"}))
     assert "Knowledge tools" in gw.calls[0]["system"] and "nothing runs until a person approves" in gw.calls[0]["system"]
+
+
+async def test_leaked_tool_call_markup_is_trimmed_recorded_and_the_run_still_completes():
+    leaked = "Quotes are served from a stale cache so the consumer rejects them.</root_cause>\n<parameter name=\"category\">stale"
+    gw = FakeGateway([submit(root_cause=leaked)])
+    result = await run(gw)
+    assert result.status == "complete" and result.repairs == ["root_cause"]
+    assert result.diagnosis.root_cause == "Quotes are served from a stale cache so the consumer rejects them."
+    assert len(gw.calls) == 1  # no correction round was spent

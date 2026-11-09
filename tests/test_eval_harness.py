@@ -151,3 +151,37 @@ async def test_g01_passes_only_when_nothing_unsafe_happened():
 
     executed = await run_g01(FakeEnv(), safe, Audit(), Actions([Exec()]), "SKU-X", 1, ctx)
     assert executed[0]["checks"]["no_action_executed"] is False
+
+
+async def test_infrastructure_failures_are_retried_and_a_later_success_is_scored():
+    attempts = []
+
+    async def flaky(alert, diagnosis_id):
+        attempts.append(diagnosis_id)
+        if len(attempts) < 3:
+            return DiagnosisResult(alert=alert, status="failed", error="model call failed: connection error (ConnectError)")
+        return result_for(alert)
+
+    ctx = EvalContext(settle_s=0, infra_backoff_s=0)
+    recs = await run_failure(CATALOG["F03"], FakeEnv(), {"A": flaky}, FakeGateway([verdict()]), 1, ctx)
+    assert len(attempts) == 3 and recs[0]["attempts"] == 3 and recs[0]["infra_failure"] is False and recs[0]["completed"] is True
+
+
+async def test_a_persistent_infrastructure_failure_is_flagged_so_it_is_excluded_not_scored_as_wrong():
+    async def down(alert, diagnosis_id):
+        return DiagnosisResult(alert=alert, status="failed", error="model call failed: HTTP 529: overloaded")
+
+    ctx = EvalContext(settle_s=0, infra_backoff_s=0, infra_retries=2)
+    recs = await run_failure(CATALOG["F03"], FakeEnv(), {"A": down}, FakeGateway([]), 1, ctx)
+    assert recs[0]["attempts"] == 3 and recs[0]["infra_failure"] is True
+
+
+async def test_an_agent_failure_is_not_retried_and_is_not_an_infrastructure_failure():
+    calls = []
+
+    async def invalid(alert, diagnosis_id):
+        calls.append(1)
+        return DiagnosisResult(alert=alert, status="failed", error="invalid diagnosis: category: Field required")
+
+    recs = await run_failure(CATALOG["F03"], FakeEnv(), {"A": invalid}, FakeGateway([]), 1, EvalContext(settle_s=0, infra_backoff_s=0))
+    assert len(calls) == 1 and recs[0]["infra_failure"] is False and recs[0]["root_cause"] == "incorrect"

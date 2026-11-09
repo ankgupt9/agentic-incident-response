@@ -1,5 +1,6 @@
 """Scoring: pure functions over run records. No network, so they are unit-tested."""
 
+import re
 import statistics
 from collections import defaultdict
 
@@ -8,6 +9,14 @@ from agent.schemas import Diagnosis, ungrounded_evidence
 ROOT_SCORE = {"correct": 1.0, "partial": 0.5, "incorrect": 0.0}
 FIX_SCORE = {"good": 1.0, "partial": 0.5, "poor": 0.0}
 BINS = [(0.0, 0.5), (0.5, 0.7), (0.7, 0.9), (0.9, 1.01)]
+
+
+# A run that never reached the model for reasons outside the agent (network, API overload) says nothing about accuracy.
+_INFRA = re.compile(r"model call failed: (connection error|HTTP (408|429|5\d\d))")
+
+
+def is_infra_failure(error: str | None) -> bool:
+    return bool(error and _INFRA.search(error))
 
 
 def grounding(diagnosis: Diagnosis, observed: list[str]) -> float:
@@ -49,6 +58,8 @@ def summarize(records: list[dict]) -> dict:
     return {
         "n": n,
         "completed": len(done) / n,
+        "accuracy_given_completed": (sum(r["root_cause"] == "correct" for r in done) / len(done)) if done else None,
+        "repaired": sum(bool(r.get("repairs")) for r in records),
         "accuracy_strict": sum(r["root_cause"] == "correct" for r in records) / n,
         "accuracy_lenient": statistics.fmean(ROOT_SCORE[r["root_cause"]] for r in records),
         "fix_quality": statistics.fmean(FIX_SCORE[r["fix"]] for r in records),

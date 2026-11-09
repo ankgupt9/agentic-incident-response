@@ -6,6 +6,7 @@
 """
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -17,8 +18,12 @@ from pydantic import BaseModel
 from simulator.failure_injector.change_feed import ChangeFeed, ChangeSpec, record_change_events
 
 CATALOG_PATH = Path(__file__).resolve().parents[2] / "failures" / "catalog.yaml"
-# Host-side ports published by docker-compose.yml.
-SERVICE_URLS = {"order-service": "http://localhost:8001", "pricing-service": "http://localhost:8002"}
+# Host-side ports published by docker-compose.yml. Inside the compose network set these to
+# http://order-service:8000 and http://pricing-service:8000 (the agent-trigger container does).
+SERVICE_URLS = {
+    "order-service": os.getenv("ORDER_SERVICE_URL", "http://localhost:8001"),
+    "pricing-service": os.getenv("PRICING_SERVICE_URL", "http://localhost:8002"),
+}
 
 
 class FaultSpec(BaseModel):

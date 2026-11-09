@@ -53,7 +53,7 @@ class Settings:
     max_tokens: int = 4096
     effort: str = "medium"
     timeout_s: float = 60.0
-    max_retries: int = 2
+    max_retries: int = 4  # the SDK backs off between attempts
     # False runs the agent on telemetry only (ablation arm A).
     knowledge_tools: bool = True
     # The model may propose actions (it can never perform them). Real execution also needs actions_dry_run=False.

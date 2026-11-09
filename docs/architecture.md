@@ -2,7 +2,7 @@
 
 Two systems share one telemetry stack: a simulated order flow that breaks on purpose, and an agent that diagnoses the breakage. The same Prometheus, Grafana and Tempo that watch the orders also watch the agent.
 
-Solid boxes are built. Dashed boxes are planned (Days 2 to 4).
+Everything shown is built. The detail behind each box is in [solution-design.md](solution-design.md).
 
 ## 1. System overview
 
@@ -33,12 +33,12 @@ flowchart TB
         direction LR
         MCP["MCP server: query_logs,<br/>get_trace, query_metrics"]
         KN["Knowledge tools: runbooks,<br/>service catalog, recent changes"]
-        ACT["Action tools: replay_message,<br/>draft_pull_request"]:::planned
+        ACT["Propose-only action tools:<br/>replay_message (sandbox),<br/>draft_pull_request (draft)"]
     end
 
-    subgraph L5["Layer 5: Governance (Day 3)"]
+    subgraph L5["Layer 5: Governance"]
         direction LR
-        GR["Guardrails"]:::planned --> AP["Human approval"]:::planned --> AUD[("Audit log")]:::planned
+        GR["Guardrails"] --> AP["Human approval"] --> AUD[("Audit log")]
     end
 
     subgraph L6["Layer 6: Agent observability"]
@@ -47,7 +47,7 @@ flowchart TB
         AIH["AI Health dashboard"]
     end
 
-    EVAL["Layer 7: Eval harness (Day 4)<br/>accuracy, cost, latency,<br/>confidence calibration"]:::planned
+    EVAL["Layer 7: Eval harness<br/>accuracy, cost, latency,<br/>confidence calibration"]
 
     INJ -. "inject faults" .-> L1
     L1 -- "logs, traces, metrics" --> L2
@@ -61,7 +61,6 @@ flowchart TB
     LOOP -- "spans + metrics" --> L6
     EVAL -. "replays labeled failures,<br/>scores the loop" .-> INJ
 
-    classDef planned stroke-dasharray: 5 5,fill:#f6f6f6,color:#555;
 ```
 
 ## 2. From failure to diagnosis
@@ -100,9 +99,9 @@ sequenceDiagram
     L-->>P: diagnosis span + metrics
 ```
 
-## 3. Governance control flow (Day 3, planned)
+## 3. Governance control flow
 
-The agent can only look today. When actions arrive (`replay_message`, `draft_pull_request`), every one passes this path. Nothing executes without an approval record.
+The agent can only look and propose. Every proposed action (`replay_message`, `draft_pull_request`) passes this path. Nothing executes without an approval record.
 
 ```mermaid
 flowchart LR
@@ -118,8 +117,6 @@ flowchart LR
     STOP2 --> AUD
     STOP3 --> AUD
 
-    classDef planned stroke-dasharray: 5 5,fill:#f6f6f6,color:#555;
-    class D,KS,GR,HUM,EX,AUD,STOP1,STOP2,STOP3 planned;
 ```
 
 ## Where things live

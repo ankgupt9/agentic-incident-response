@@ -20,7 +20,7 @@ from agent.gateway import ModelGateway
 from agent.schemas import Alert, DiagnosisResult, ungrounded_evidence
 from evals.judge import judge
 from evals.scenarios import EXPECTED_RUNBOOK, INJECTION_PHRASES
-from evals.scoring import grounding
+from evals.scoring import grounding, is_infra_failure
 from simulator.failure_injector.injector import Failure
 
 ORDER_URL, RECORDER_URL = "http://localhost:8001/orders", "http://localhost:8003/alerts/recent"
@@ -48,6 +48,8 @@ class EvalContext:
 
     floor_ns: int = 0  # telemetry window start for the current scenario
     settle_s: float = 15.0
+    infra_retries: int = 3  # extra attempts for failures outside the agent (network, API overload)
+    infra_backoff_s: float = 20.0
     concurrency: int = 4
     knowledge_hook: Callable[[Failure], Awaitable[None]] | None = None
 
@@ -134,13 +136,14 @@ def alert_for(failure: Failure) -> Alert:
     )
 
 
-async def score_run(failure: Failure, arm: str, repeat: int, result: DiagnosisResult, judge_gw: ModelGateway, alert_fired: bool) -> dict:
+async def score_run(failure: Failure, arm: str, repeat: int, result: DiagnosisResult, judge_gw: ModelGateway, alert_fired: bool, attempts: int = 1) -> dict:
     dg = result.diagnosis
     record = {
         "failure_id": failure.id, "arm": arm, "repeat": repeat, "alert_fired": alert_fired, "status": result.status, "completed": dg is not None,
         "steps": result.steps, "tool_calls": result.tool_calls, "input_tokens": result.input_tokens, "output_tokens": result.output_tokens,
         "cost_usd": result.cost_usd, "latency_s": result.latency_s, "error": result.error, "knowledge_version": result.knowledge_version,
-        "expected_runbook": EXPECTED_RUNBOOK.get(failure.id),
+        "expected_runbook": EXPECTED_RUNBOOK.get(failure.id), "attempts": attempts, "repairs": result.repairs,
+        "infra_failure": result.status == "failed" and is_infra_failure(result.error),
     }
     if dg is None:
         return {**record, "root_cause": "incorrect", "fix": "poor", "judge_reasoning": "no diagnosis was produced", "judge_cost_usd": 0.0,
@@ -171,11 +174,15 @@ async def run_failure(failure: Failure, env: Environment, arms: dict[str, ArmRun
 
     async def one(arm: str, repeat: int) -> dict:
         async with slots:
-            try:
-                result = await arms[arm](alert, f"eval-{failure.id}-{arm}-{repeat}")
-            except Exception as exc:  # a crashed run is a failed run, not a lost eval
-                result = DiagnosisResult(alert=alert, status="failed", error=f"{type(exc).__name__}: {exc}")
-            return await score_run(failure, arm, repeat, result, judge_gw, fired)
+            for attempt in range(1, ctx.infra_retries + 2):
+                try:
+                    result = await arms[arm](alert, f"eval-{failure.id}-{arm}-{repeat}-try{attempt}")
+                except Exception as exc:  # a crashed run is a failed run, not a lost eval
+                    result = DiagnosisResult(alert=alert, status="failed", error=f"{type(exc).__name__}: {exc}")
+                if not (result.status == "failed" and is_infra_failure(result.error)) or attempt > ctx.infra_retries:
+                    break
+                await asyncio.sleep(ctx.infra_backoff_s * attempt)  # wait out the outage, then ask again
+            return await score_run(failure, arm, repeat, result, judge_gw, fired, attempts=attempt)
 
     try:
         return list(await asyncio.gather(*(one(a, r) for a in arms for r in range(repeats))))

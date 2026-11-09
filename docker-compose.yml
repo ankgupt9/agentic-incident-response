@@ -112,6 +112,37 @@ services:
       timeout: 3s
       retries: 10
 
+  # --- The agent (Grafana alerts reach it at http://agent-trigger:8000/alerts) ---
+  knowledge-ingest:
+    build: { context: ., dockerfile: agent/Dockerfile }
+    command: python -m knowledge_store.ingest
+    environment: &agent-env
+      DATABASE_URL: postgresql://agent:${POSTGRES_PASSWORD:-agent_dev}@postgres:5432/agent
+      LOKI_URL: http://loki:3100
+      TEMPO_URL: http://tempo:3200
+      PROMETHEUS_URL: http://prometheus:9090
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      PHOENIX_URL: http://phoenix:6006
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      ORDER_SERVICE_URL: http://order-service:8000
+      PRICING_SERVICE_URL: http://pricing-service:8000
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  agent-trigger:
+    build: { context: ., dockerfile: agent/Dockerfile }
+    # ANTHROPIC_API_KEY and AGENT_ADMIN_TOKEN come from the gitignored .env file.
+    env_file:
+      - { path: .env, required: false }
+    environment: *agent-env
+    ports: ["8004:8000"]
+    depends_on:
+      knowledge-ingest: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+      otel-collector: { condition: service_started }
+      phoenix: { condition: service_started }
+
 volumes:
   phoenix-data:
   postgres-data:

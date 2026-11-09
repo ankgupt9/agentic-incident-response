@@ -4,7 +4,7 @@ An AI agent that investigates integration failures, and a platform that governs 
 
 | | |
 |---|---|
-| Status | Days 1 and 2 built apart from the core loop and the knowledge layer. Day 2 also carries the knowledge build, Day 3 (actions, governance) and Day 4 (evals, publish) are planned. |
+| Status | Built end to end: simulated enterprise, observability, agent, knowledge layer, governance (audit log, guardrails, approval gate, kill switch) and the eval harness. Content written by Ankur (real failure catalog, runbooks, catalog entries) is still to come. Results are in [eval-report.md](eval-report.md). |
 | Audience | Part A: business and product readers. Part B: engineers and interviewers. |
 | Repo | <https://github.com/ankgupta9/agentic-incident-response> |
 
@@ -36,9 +36,9 @@ Off-the-shelf AI assistants in observability and developer tools can summarize a
 ## A2. What this solution does
 
 1. **Detects** a failure in a simulated order flow through ordinary monitoring alerts.
-2. **Investigates** automatically: the agent reads logs, follows traces and checks metrics. With the knowledge tools (Day 2) it also consults runbooks, the service catalog and recent changes, which stand in for the colleague an engineer would ask.
+2. **Investigates** automatically: the agent reads logs, follows traces and checks metrics. With the knowledge tools it also consults runbooks, the service catalog and recent changes, which stand in for the colleague an engineer would ask.
 3. **Reports** a structured diagnosis: root cause, evidence quoted from the data, confidence from 0 to 100%, and a recommended fix.
-4. **Proposes** a fix as text. On Day 3 it can also draft a pull request or replay a message in a sandbox, but only after guardrails and human approval.
+4. **Proposes** a fix as text. It can also propose a draft pull request or a sandbox replay of one message, but nothing runs unless guardrails pass and a person approves.
 5. **Governs and monitors itself.** Every model call, tool call, cost and decision is traced and measured on a dashboard, and every action is audit-logged.
 6. **Proves itself** through evaluations that replay known failures and score accuracy, cost, latency and how well its confidence matches reality.
 
@@ -48,8 +48,8 @@ The second half of that list is the point of the project: it is as much about go
 
 | Role | What they do | Where they appear |
 |---|---|---|
-| On-call engineer | Receives the diagnosis, reviews evidence, decides whether to act | Reads the diagnosis; approves or rejects proposed actions (Day 3) |
-| Approver | Authorizes any action that changes something | Human approval gate (Day 3) |
+| On-call engineer | Receives the diagnosis, reviews evidence, decides whether to act | Reads the diagnosis; approves or rejects proposed actions |
+| Approver | Authorizes any action that changes something | Human approval gate |
 | Platform owner | Runs the stack, owns alert rules and runbooks | Grafana, runbook library |
 | AI governance owner | Sets what the agent may do, reviews its behavior and cost | Guardrails, AI Health dashboard, audit log, evals |
 | Developer (Ankur) | Writes the failure catalog, runbooks and catalog entries; reviews the core loop and every action tool and guardrail | Repository |
@@ -69,7 +69,7 @@ flowchart LR
     G --> H["Confirms recovery"]
 ```
 
-The time spent between "alert" and "theory" is the cost this project targets. The baseline mean time to diagnose is measured in Day 4, not assumed.
+The time spent between "alert" and "theory" is the cost this project targets. The agent's time to diagnose is measured in the eval report; the human baseline is not measured here.
 
 ### After: agent-assisted incident handling
 
@@ -91,19 +91,19 @@ flowchart TB
         A2["Investigates with<br/>read-only tools"]
         A3["Enough evidence?"]
         A4["Submits structured<br/>diagnosis"]
-        A5["Proposes fix"]:::planned
+        A5["Proposes fix"]
     end
 
     subgraph GOV["Governance controls"]
-        G1["Guardrails check<br/>(allowlist, rate limit,<br/>dry-run default)"]:::planned
-        G2["Audit log<br/>records everything"]:::planned
+        G1["Guardrails check<br/>(allowlist, rate limit,<br/>dry-run default)"]
+        G2["Audit log<br/>records everything"]
         G3["Cost, latency and<br/>tool errors measured"]
     end
 
     subgraph PPL["People"]
         H1["On-call engineer<br/>reviews diagnosis"]
-        H2["Approver decides"]:::planned
-        H3["Fix executed in<br/>sandbox or as draft PR"]:::planned
+        H2["Approver decides"]
+        H3["Fix executed in<br/>sandbox or as draft PR"]
         H4["Outcome feeds runbooks<br/>and evaluations"]:::planned
     end
 
@@ -128,31 +128,31 @@ flowchart TB
 ### Process rules
 
 - The agent can only **look** today. All its tools are read-only.
-- When it can act (Day 3), the default is **dry-run**. Real changes need guardrails and explicit approval.
+- When it can act, the default is **dry-run**. Real changes need guardrails and explicit approval.
 - A low-confidence diagnosis is a valid outcome. The agent is told to say so rather than guess.
 - If the agent hits its step limit it must still answer, and the result is flagged as forced.
-- A kill switch can stop the agent at any time (Day 3).
+- A kill switch can stop the agent at any time.
 
 ## A5. Risks and controls
 
 | Risk | Control | Evidence it works | Status |
 |---|---|---|---|
-| The agent changes something it should not | Read-only tools; actions default to dry-run; guardrail allowlist | Tests that nothing executes without an approval record | Read-only built; rest Day 3 |
-| Log text tries to hijack the agent (prompt injection) | Logs labeled as untrusted data; system prompt forbids following them; filter hook in place | Adversarial test: a log line saying "ignore your instructions" | Labeling built; filter Day 3 |
+| The agent changes something it should not | Read-only tools; actions default to dry-run; guardrail allowlist | Tests that nothing executes without an approval record | Built and tested |
+| Log text tries to hijack the agent (prompt injection) | Logs labeled as untrusted data; system prompt forbids following them; filter hook in place | Adversarial test: a log line saying "ignore your instructions" | Built and tested; live prompt-injection scenario in the evals |
 | The agent invents evidence | Evidence must be quoted from tool results; a check flags quotes never shown to the model | Ungrounded-evidence check, scored in evals | Check built; loop use is Ankur's call |
-| Runaway spend | Step cap; per-call cost tracking; cost-per-diagnosis panel; alert on spikes | AI Health dashboard | Tracking built; alerts Day 3 |
-| Overconfidence | Confidence is a required field; evals check calibration | Calibration report | Day 4 |
-| Silent model change | Model version pinned in config, never "latest"; changes audit-logged | Config and audit log | Pinned; logging Day 3 |
-| No accountability | Audit log of every tool call, decision and approval | Postgres audit table | Day 3 |
+| Runaway spend | Step cap; per-call cost tracking; cost-per-diagnosis panel; alert on spikes | AI Health dashboard | Built, with alert rules on the agent |
+| Overconfidence | Confidence is a required field; evals check calibration | Calibration report | Eval report |
+| Silent model change | Model version pinned in config, never "latest"; changes audit-logged | Config and audit log | Built (model pinned and audited at startup) |
+| No accountability | Audit log of every tool call, decision and approval | Postgres audit table | Built (append-only) |
 | Sensitive data in traces | Content capture can be switched off; text truncated | Setting `AGENT_TRACE_CONTENT` | Built |
-| Agent is down or misbehaving | Kill switch; failed diagnoses are recorded, not hidden | Kill-switch test | Day 3 |
-| Stale or wrong knowledge (runbooks, catalog) leads to a confident wrong answer | Each knowledge entry has an owner and a last-reviewed date; diagnoses must cite the entry they used; eval ablation shows the knowledge's effect | Citations and ablation in evals | Day 2 and Day 4 |
+| Agent is down or misbehaving | Kill switch; failed diagnoses are recorded, not hidden | Kill-switch test | Built, fails closed |
+| Stale or wrong knowledge (runbooks, catalog) leads to a confident wrong answer | Each knowledge entry has an owner and a last-reviewed date; diagnoses must cite the entry they used; eval ablation shows the knowledge's effect | Citations and ablation in evals | Built; ablation in the eval report |
 | Simulator leaks the answer (fault toggles are logged) | Remove those log lines before the baseline; emit neutral change events | Eval baseline reviewed for leakage | Fixed; change feed and leak tests in place |
 | Repeated alerts cause repeated spend | Same alert is not re-diagnosed within 10 minutes; at most 2 diagnoses run at once | Service tests | Built |
 
 ## A6. How success is measured
 
-All measured by the Day 4 evaluation harness over the labeled failures. Targets are set after the baseline run, not before.
+All measured by the evaluation harness over the labeled failures. Targets are set after the baseline run, not before.
 
 | Measure | Question it answers |
 |---|---|
@@ -203,22 +203,22 @@ flowchart TB
         G2["Core loop"]
         G3["Model gateway"]
         G4["Read-only MCP tools"]
-        G6["Knowledge tools: runbooks,<br/>catalog, recent changes"]:::planned
+        G6["Knowledge tools: runbooks,<br/>catalog, recent changes"]
         G5["Structured diagnosis"]
     end
     subgraph GOVERN["Govern"]
-        V1["Guardrails"]:::planned
-        V2["Approval gate"]:::planned
-        V3["Audit log"]:::planned
-        V4["Kill switch, pinned model"]:::planned
+        V1["Guardrails"]
+        V2["Approval gate"]
+        V3["Audit log"]
+        V4["Kill switch, pinned model"]
     end
     subgraph WATCH["Observe the agent"]
         W1["Trace per model and tool call"]
         W2["AI Health dashboard"]
     end
     subgraph PROVE["Prove"]
-        E1["Eval harness and scorer"]:::planned
-        E2["Calibration and guardrail tests"]:::planned
+        E1["Eval harness and scorer"]
+        E2["Calibration and guardrail tests"]
     end
 
     SIM --> OBS --> AGENT
@@ -261,12 +261,12 @@ flowchart TB
         direction LR
         MCP["MCP server: query_logs,<br/>get_trace, query_metrics"]
         KN["Knowledge tools: runbooks,<br/>service catalog, recent changes"]
-        ACT["Action tools: replay_message,<br/>draft_pull_request"]:::planned
+        ACT["Action tools: replay_message,<br/>draft_pull_request"]
     end
 
-    subgraph L5["Layer 5: Governance (Day 3)"]
+    subgraph L5["Layer 5: Governance"]
         direction LR
-        GR["Guardrails"]:::planned --> AP["Human approval"]:::planned --> AUD[("Audit log")]:::planned
+        GR["Guardrails"] --> AP["Human approval"] --> AUD[("Audit log")]
     end
 
     subgraph L6["Layer 6: Agent observability"]
@@ -275,7 +275,7 @@ flowchart TB
         AIH["AI Health dashboard"]
     end
 
-    EVAL["Layer 7: Eval harness (Day 4)<br/>accuracy, cost, latency,<br/>confidence calibration"]:::planned
+    EVAL["Layer 7: Eval harness<br/>accuracy, cost, latency,<br/>confidence calibration"]
 
     INJ -. "inject faults" .-> L1
     L1 -- "logs, traces, metrics" --> L2
@@ -294,37 +294,37 @@ flowchart TB
 
 ### Deployment view
 
-Everything except the agent runs in Docker Compose. During development the agent and its MCP server run on the host, so you can iterate and debug the loop quickly. Containerizing the agent is a Day 4 task.
+Everything runs in Docker Compose, including the agent. The MCP server runs as a subprocess inside the agent container. For development you can run the agent on the host instead (`uvicorn agent.trigger:app --port 8004`) and point the Grafana receiver at `host.docker.internal:8004`.
 
 ```mermaid
 flowchart LR
     CLAUDE{{"Claude API<br/>(internet)"}}
+    PERSON["On-call engineer<br/>(browser)"]
 
-    subgraph HOST["Developer machine (macOS)"]
-        AG["Alert trigger<br/>uvicorn :8004"]
-        MCPP["MCP server<br/>(stdio subprocess)"]
-        CLI["pytest, load script,<br/>failure injector CLI"]
-
-        subgraph DC["Docker Compose network"]
-            direction TB
-            SVCS["order-service :8001<br/>pricing-service :8002<br/>alert-recorder :8003"]
-            MQ["RabbitMQ :5672 / :15672"]
-            PG[("Postgres :5432<br/>knowledge store")]
-            COL["OTel Collector<br/>:4317 / :4318"]
-            BE["Loki :3100<br/>Tempo :3200<br/>Prometheus :9090"]
-            GRAF["Grafana :3000"]
-            PHX["Phoenix :6006"]
+    subgraph DC["Docker Compose network"]
+        direction TB
+        subgraph AGC["agent-trigger container :8004"]
+            AG["Alert trigger<br/>+ governed runner"]
+            MCPP["MCP server<br/>(stdio subprocess)"]
         end
+        SVCS["order-service :8001<br/>pricing-service :8002<br/>alert-recorder :8003"]
+        MQ["RabbitMQ :5672 / :15672"]
+        PG[("Postgres :5432<br/>knowledge, audit log,<br/>approvals, kill switch")]
+        COL["OTel Collector<br/>:4317 / :4318"]
+        BE["Loki :3100<br/>Tempo :3200<br/>Prometheus :9090"]
+        GRAF["Grafana :3000"]
+        PHX["Phoenix :6006"]
     end
 
     AG -- "HTTPS" --> CLAUDE
     AG -- "stdio" --> MCPP
     MCPP -- "HTTP queries" --> BE
     MCPP -- "SQL" --> PG
+    AG -- "audit, approvals" --> PG
     AG -- "OTLP spans + metrics" --> COL
     AG -- "OTLP spans" --> PHX
-    GRAF -- "webhook via<br/>host.docker.internal:8004" --> AG
-    CLI -- "HTTP admin + traffic" --> SVCS
+    GRAF -- "webhook" --> AG
+    PERSON -- "approve / reject,<br/>kill switch (admin token)" --> AG
 ```
 
 ## B3. Runtime flow: failure to diagnosis
@@ -448,7 +448,7 @@ stateDiagram-v2
 `agent/trigger.py` (FastAPI, port 8004, run with `uvicorn agent.trigger:app --port 8004`).
 
 - `POST /alerts` reads Grafana's payload, ignores resolved alerts, and starts one background diagnosis per firing alert.
-- The same alert is not re-diagnosed within 10 minutes. At most 2 diagnoses run at once. 200 diagnosis jobs are kept, in memory (durable storage arrives with Postgres on Day 2, and the audit log follows on Day 3).
+- The same alert is not re-diagnosed within 10 minutes. At most 2 diagnoses run at once. 200 diagnosis jobs are kept, in memory (job records are in memory; the audit log, approvals and kill switch state are in Postgres).
 - A crash in a diagnosis is recorded as a failed result, never an error to Grafana.
 - `GET /diagnoses` and `GET /diagnoses/{id}` return results.
 
@@ -512,9 +512,9 @@ Design rules shared by all tools:
 - Inputs are validated before they reach a query language (service names against a pattern, trace ids against hex, quotes escaped), so the model cannot inject LogQL.
 - Output is compact and size-capped so one call cannot flood the model's context.
 - Failures return an error result the model can read, not an exception.
-- A `sanitize_log_text` hook marks where the Day 3 prompt-injection filter plugs in.
+- `sanitize_log_text` truncates text; the prompt-injection filter runs on every tool result in the governed toolbox (B8).
 
-Planned (knowledge tools on Day 2, action tools on Day 3; see [knowledge-design.md](knowledge-design.md)):
+Knowledge tools are built (see [knowledge-design.md](knowledge-design.md)). The two action tools exist only as propose-only tools (B8):
 
 | Tool | Kind | Purpose |
 |---|---|---|
@@ -528,7 +528,7 @@ Later: `search_past_incidents` (earlier diagnoses and how they were resolved) an
 
 **Knowledge is the lever for step 3.** Telemetry explains what happened; knowledge explains why. The quality, ownership and freshness of these sources cap the agent's accuracy, so they are treated as governed assets: owned, dated, versioned in the repository and cited in diagnoses.
 
-## B8. Governance (Layer 5, Day 3)
+## B8. Governance (Layer 5)
 
 Every proposed action passes this path. Nothing executes without an approval record.
 
@@ -545,12 +545,23 @@ flowchart LR
     STOP1 --> AUD
     STOP2 --> AUD
     STOP3 --> AUD
-
-    classDef planned stroke-dasharray: 5 5,fill:#f6f6f6,color:#555;
-    class D,KS,GR,HUM,EX,AUD,STOP1,STOP2,STOP3 planned;
 ```
 
-Planned components: guardrails (tool allowlist, rate limits, dry-run default, prompt-injection filtering of log content), a simple approval page, an audit log in Postgres on a Docker volume, a runtime kill switch with its changes audit-logged, and adversarial tests that attack each control.
+What is built, where, and the property each part guarantees:
+
+| Control | Code | Guarantee |
+|---|---|---|
+| Governed toolbox | `agent/governed.py` | Every tool call passes kill switch, allowlist and rate limits, is audited before and after, and has its output filtered. If the audit log is down the call is refused (fail closed). |
+| Allowlist and limits | `agent/guardrails.py`, `agent/runtime.py` | A tool exists for the model only if it is named for this configuration. Per-tool, per-diagnosis and global rate limits. |
+| Injection filter | `agent/guardrails.py` | Instruction-like phrases in logs and knowledge text are cut out and reported. A tripwire, not the guarantee: the guarantee is that nothing the model reads can execute an action. |
+| Budgets | `agent/loop.py`, `agent/runner.py` | Per-diagnosis spend cap forces a final answer; a daily budget refuses new diagnoses. |
+| Audit log | `agent/audit.py` | Append-only in Postgres (triggers refuse UPDATE, DELETE, TRUNCATE). Records tool calls, guardrail blocks, proposals, approvals, executions, model in use and kill switch changes. |
+| Kill switch | `agent/killswitch.py`, `agent/admin_api.py` | Stored in Postgres, shared by every process, checked before each diagnosis and before each step. Reads as engaged if its state cannot be read. Every change is audited with actor and reason. |
+| Propose-only actions | `agent/proposals.py`, `agent/actions.py` | The model's only action tools write a pending record. Replay targets the sandbox queue only; a draft PR can only add one markdown file under `proposed-fixes/`. Arguments are validated at proposal and again at execution. |
+| Approval gate | `agent/actions.py`, `agent/approval_store_pg.py`, `agent/admin_api.py` | A decision happens once, atomically; expired proposals cannot be approved; the agent cannot approve its own proposal; execution is a dry run unless real execution is switched on as well. |
+| Admin access | `agent/admin_api.py` | Protected by `AGENT_ADMIN_TOKEN`, compared in constant time. If the token is unset every admin endpoint refuses, so a forgotten setting disables approvals instead of opening them. |
+
+Tests: allowlist, rate limits, injection patterns (with false-positive checks on ordinary logs), append-only enforcement against real Postgres, fail-closed audit and kill switch, the approval gate, and an end-to-end adversarial scenario in which the model "obeys" injected text and still cannot execute anything. A live scenario (G01) plants injection text in an order SKU so it reaches the logs the agent reads; the eval report shows the outcome.
 
 ## B9. Agent observability (Layer 6)
 
@@ -588,24 +599,29 @@ Spans carry both OpenTelemetry GenAI attributes and OpenInference attributes, wh
 | `agent_tokens_total` | model, type | Input and output tokens |
 | `agent_cost_usd_total` | model | Spend |
 | `agent_tool_calls_total` | tool, outcome | Tool calls and errors |
-| `agent_guardrail_blocks_total` | | Blocks (defined, used from Day 3) |
+| `agent_guardrail_blocks_total` | kind, tool | Blocks and cleanups: policy, kill_switch, injection |
+| `agent_actions_proposed_total` | tool | Actions the agent proposed |
+| `agent_actions_decided_total` | decision | Approvals and rejections |
 
-The **AI Health** dashboard shows diagnoses by status, cost per diagnosis and total spend, tokens by type, model latency (p50, p95), tool calls by outcome, and diagnosis duration. Alert rules on the agent itself (cost spike, tool error rate, guardrail block rate) arrive on Day 3.
+The **AI Health** dashboard shows diagnoses by status, cost per diagnosis and total spend, tokens by type, model latency (p50, p95), tool calls by outcome, and diagnosis duration. Four alert rules watch the agent itself (cost per diagnosis, tool error rate, guardrail blocks, failure rate). They carry `source=agent` and route to a separate contact point, never to the agent trigger: an agent must not diagnose its own health.
 
-## B10. Evaluation (Layer 7, Day 4)
+## B10. Evaluation (Layer 7)
 
-An eval harness replays each labeled failure, lets the agent diagnose it, and scores the result. The existing `scripts/verify_failures.py` is its skeleton: it already injects a failure under load and waits for the alert.
+`python -m evals.run` replays labeled failures through the live stack and scores the result. The report is [eval-report.md](eval-report.md).
+
+For each failure the harness injects it under load, waits for the real Grafana alert, then runs each arm several times against the same live evidence: **A** telemetry only, **B** plus runbooks, the service catalog, contracts and change records. Telemetry queries are limited to a window that starts just before the injection, and the change feed and knowledge index are reset per scenario, so scenarios cannot contaminate each other.
 
 | Score | How |
 |---|---|
-| Root-cause accuracy | Compare the diagnosis to the failure's labeled root cause |
-| Evidence grounding | Share of evidence quotes found in the tool results |
-| Fix quality | Rubric or judge model scoring the recommended action |
-| Confidence calibration | Bucket diagnoses by stated confidence, compare to actual accuracy |
+| Root-cause accuracy | A judge model (different and larger than the agent, blind to the arm) compares the diagnosis with the labeled cause: correct, partial or incorrect |
+| Fix quality | The same judge compares the recommended action with the labeled fix |
+| Evidence grounding | Share of evidence quotes found in the tool results the model saw (quotes may join real excerpts with `;` or `...`) |
+| Confidence calibration | Diagnoses bucketed by stated confidence against actual accuracy; Brier score and calibration error |
+| Knowledge use | How often arm B cited a knowledge entry, and the one a person would expect |
 | Cost and latency | From the result record |
-| Guardrail tests | Attack scenarios that must be blocked |
+| Guardrails | G01, a live prompt-injection scenario, plus the governance test suite |
 
-An ablation compares telemetry only against telemetry plus knowledge tools, which measures what tribal knowledge is worth. The run produces a baseline, then prompt, tool-description and retrieval changes are tuned and measured again, giving a before-and-after. Development uses the small model. Final evals run on a larger model, and the comparison of the two is published. Evals can also run as a regression gate on any prompt or model change.
+The failure catalog and the knowledge content are placeholders and drafts, so the numbers demonstrate the method; they are not a benchmark. The report says so at the top.
 
 ---
 
@@ -618,11 +634,11 @@ An ablation compares telemetry only against telemetry plus knowledge tools, whic
 | Claude only, through a thin gateway | Keeps one vendor to evaluate and secure, while the interface stays swappable | No local-model option |
 | Custom agent loop first | The loop is the core of the system and must be understood and defended line by line | More code than a framework; a LangGraph port is a stretch goal |
 | MCP for tools | A standard interface that other agents and clients can reuse | An extra process boundary |
-| Read-only tools on Day 2 | The agent can be exercised safely before any action exists | It cannot fix anything yet |
+| Investigation tools are read-only; actions are propose-only | The model can never change anything; a person approves every effect | The agent cannot fix anything by itself |
 | Pydantic schemas at every boundary | Untrusted data (model output, log text, tool arguments) is checked before use | Validation proves shape, not truth |
 | Diagnosis category as free text plus a short label | Does not leak answers to the agent or break when the real catalog replaces the placeholders | Harder to score than a fixed list; revisit when the real catalog exists |
 | Phoenix over Langfuse | One container, no extra databases; Langfuse v3 needs Postgres, ClickHouse, Redis and object storage | Fewer enterprise features |
-| Agent runs on the host during development | Fast iteration and easy debugging of the loop | Containerized on Day 4 |
+| Agent in a container, host mode for development | One command starts everything; the loop is still easy to debug on the host | A second way to run it |
 | Tracing and metrics as wrappers | The loop stays free of observability code | One more layer to maintain |
 | `mcp<2` pinned | Version 2 renamed the server API | Upgrade later on purpose |
 | Same-alert dedupe and a concurrency cap | Grafana repeats notifications; model calls cost money | A real second incident for the same alert within 10 minutes is skipped |
@@ -645,16 +661,16 @@ An ablation compares telemetry only against telemetry plus knowledge tools, whic
 | End-to-end run | Waiting on the loop | | |
 | Knowledge machinery (store, ingestion, lint, five tools, off switch) | Built | `knowledge_store/`, `mcp_server/knowledge_tools.py` | 35 |
 | Knowledge content (runbooks, catalog entries) | Ankur to write; catalog entries drafted | `knowledge/` | |
-| Actions, governance, kill switch | Planned (Day 3) | | |
-| Evals, ablation, README, demo | Planned (Day 4) | | |
+| Actions, governance, kill switch | Built | `agent/actions.py`, `proposals.py`, `governed.py`, `guardrails.py`, `audit.py`, `killswitch.py`, `admin_api.py`, `runtime.py` | 83 |
+| Eval harness, ablation, report | Built; run results in the eval report | `evals/` | 17 |
 
-Test totals: 129 passing, 1 skipped (real golden queries, until runbooks exist).
+Test totals: 244 tests (the tests that need Postgres skip themselves when it is not running).
 
 ## C3. Ports and endpoints
 
 | Port | Service | Notes |
 |---|---|---|
-| 5432 | Postgres | Knowledge store (audit log from Day 3); persistent volume |
+| 5432 | Postgres | Knowledge store (audit log, approvals, kill switch); persistent volume |
 | 3000 | Grafana | Anonymous admin (POC); dashboards "Order Flow" and "AI Health" |
 | 6006 | Phoenix | Trace viewer and OTLP/HTTP intake; auth off (POC) |
 | 8001 | order-service | `POST /orders`, `/admin/faults` |
@@ -721,19 +737,21 @@ What this proof of concept deliberately simplifies:
 - **Catalog realism.** The placeholder failures are cleaner than real ones. Accuracy numbers are only as credible as the catalog behind them. Replacing it is the single biggest lever on the project's credibility.
 - **Sample size.** Eight to ten failures give a rough accuracy figure, not a statistically tight one. Say so when publishing.
 - **Judge bias.** If a model scores fix quality, its bias needs a sanity check against human review of a sample.
-- **Prompt-injection coverage.** Labeling log text as untrusted reduces risk but does not remove it. The Day 3 filter and adversarial tests exist for this reason.
+- **Prompt-injection coverage.** Labeling log text as untrusted reduces risk but does not remove it. The filter and the adversarial tests exist for this reason.
 - **Model changes.** The pinned model protects against silent changes, but a deliberate upgrade needs a rerun of the evals before adoption.
 - **Open design question.** Fixed list versus free text for the root-cause category (see C1).
 
-## C7. Roadmap
+## C7. Status and what remains
 
-Four days. The knowledge layer has its own design in [knowledge-design.md](knowledge-design.md). It is built inside Days 2 and 3, in parallel with Ankur's runbook work, rather than adding a day. The telemetry-only end-to-end run on Day 2 doubles as the first arm of the knowledge ablation. Days 2 and 3 are heavy and depend on the runbooks arriving early.
+All four planned days are built (see C2). What is left is content and judgment that only Ankur can supply:
 
-| Day | Work | Owner | Done when |
-|---|---|---|---|
-| 1 | Platform and telemetry | Done | Injected failures fire alerts |
-| 2 | Core loop (built); runbooks and catalog entries. Then: remove answer-leaking fault logs first, then knowledge store, ingestion, lint and the runbook, catalog, contract and change-event tools. End-to-end run with knowledge tools off (ablation arm A) | Ankur: content and loop review. Claude Code: knowledge machinery | A diagnosis appears in Phoenix and on the AI Health dashboard; knowledge tools pass golden-query tests |
-| 3 | Knowledge integration (`knowledge_refs`, citation check), actions, approval gate, audit log, guardrails, kill switch, adversarial tests, alert rules on the agent | Claude Code scaffolds, Ankur reviews every line | The agent cites a runbook and a catalog entry; a proposed fix waits for approval; only approved actions execute; the kill switch stops new diagnoses |
-| 4 | Evals, two-arm ablation (A telemetry only, B plus knowledge), calibration, tuning, README, demo, publish | Both | Before-and-after numbers and the ablation result captured; repo and post published |
+| Item | Owner | Why it matters |
+|---|---|---|
+| Replace the placeholder failure catalog with real failures | Ankur | The credibility of every accuracy number depends on how realistic the failures are |
+| Replace the draft runbooks and catalog entries with experience-based ones | Ankur | The ablation currently measures what Claude-written drafts are worth, not tribal knowledge |
+| Review the action tools and guardrails line by line | Ankur | Hard rule: the person who owns the system reviews the code that can change it |
+| Review `agent/loop.py` until it can be explained | Ankur | Hard rule 8: every piece must be defensible |
+| Create a GitHub token scoped to this repo if real draft PRs are wanted | Ankur | Without it draft PRs stay dry-run |
+| Re-run the evals on the real content and publish | Both | Results on the placeholder content are a demonstration of the method |
 
-Cut order if behind: LangGraph port, then past incidents and `ask_human`, then the derived service map. Evals, the approval gate and the citation check are never cut.
+Not built: past-incident search and `ask_human` (stretch), the outcome-capture loop that turns a resolved incident into a runbook and an eval label, and the LangGraph port.

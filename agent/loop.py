@@ -28,6 +28,7 @@ from agent.schemas import (
     Alert,
     DiagnosisResult,
     parse_diagnosis,
+    repair_markup_leak,
     submit_diagnosis_tool,
     validation_message,
 )
@@ -159,8 +160,9 @@ async def run_diagnosis(
 
         if submission is not None:
             problem = None
+            payload, repaired = repair_markup_leak(submission.input)
             try:
-                diagnosis = parse_diagnosis(submission.input)
+                diagnosis = parse_diagnosis(payload)
             except ValidationError as exc:
                 problem = validation_message(exc)
             else:
@@ -169,6 +171,7 @@ async def run_diagnosis(
                 if uncited:
                     problem = f"knowledge_refs cites {uncited}, which no tool returned in this run. Cite only ids you retrieved, or use an empty list."
             if problem is None:
+                result.repairs += repaired
                 result.diagnosis = diagnosis
                 result.status = "forced" if forced else "complete"
                 result.error = None

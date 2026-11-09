@@ -9,12 +9,13 @@ contactPoints:
         settings:
           url: http://alert-recorder:8000/alerts
           httpMethod: POST
-      # The agent runs on the host during development (uvicorn agent.trigger:app --port 8004).
-      # If it is not running Grafana logs a failed notification; alert-recorder still records the alert.
+      # The agent-trigger container. For development on the host (uvicorn agent.trigger:app --port 8004)
+      # change this to http://host.docker.internal:8004/alerts. If the agent is down Grafana logs a failed
+      # notification; alert-recorder still records the alert.
       - uid: agent-trigger
         type: webhook
         settings:
-          url: http://host.docker.internal:8004/alerts
+          url: http://agent-trigger:8000/alerts
           httpMethod: POST
 
   # Alerts about the agent itself go here and never to the agent trigger: an agent must not diagnose its own health.
