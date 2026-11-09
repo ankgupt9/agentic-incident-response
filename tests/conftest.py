@@ -35,3 +35,13 @@ async def pg_audit():
     await a.apply_schema()
     yield a
     await a.drop_schema()
+
+
+@pytest.fixture
+async def pg_approvals():
+    from agent.approval_store_pg import PgApprovalStore
+
+    s = PgApprovalStore(schema=f"t_{uuid.uuid4().hex[:10]}")
+    await s.apply_schema()
+    yield s
+    await s.drop_schema()
