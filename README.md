@@ -6,6 +6,12 @@ It is built to answer one question honestly: *what does an AI incident responder
 
 > **Status and honesty.** The platform is built end to end and tested. The *content* it is evaluated on is a stand-in: the failures are a placeholder catalog and the runbooks and service catalog are drafts written by Claude Code from the simulator's behavior, not field experience. Treat the numbers as a demonstration of the method, not a benchmark. Details in [docs/eval-report.md](docs/eval-report.md).
 
+## Results so far
+
+Verified and repeatable: **252 tests pass**; a live **prompt-injection scenario passed 3 of 3** (instruction text planted in an order SKU never reached the model, nothing was approved or executed, diagnoses still completed); a diagnosis costs **about half a cent** and takes **15 to 30 seconds** on Haiku; the whole quick start below works end to end in containers.
+
+**Not yet available: a valid full ablation** (arm A telemetry only versus arm B plus knowledge). Two full runs were lost to the machine running them (a network outage, then the laptop sleeping), and the content they use is placeholder and draft. [docs/eval-report.md](docs/eval-report.md) says what is solid, what is preliminary, and the exact command to finish. [docs/baseline-log.md](docs/baseline-log.md) records everything the live runs broke and what changed.
+
 ## What it does
 
 ```mermaid

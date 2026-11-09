@@ -80,7 +80,9 @@ Day 4, evals, tuning, publish: pytest eval harness and scorer from the labeled c
 - [x] First live run (arm A, F03): fixed two tool defects and two agent bugs it exposed (docs/baseline-log.md) (pushed)
 - [x] Knowledge layer: Postgres store, ingestion and lint, five tools, off switch, `knowledge_refs` with citation check, 10 draft runbooks and 4 draft catalog entries
 - [x] Governance: append-only audit log, guardrails and allowlist, injection filter, kill switch, budgets, propose-only actions, approval gate (API and page), admin token, agent alert rules and dashboard panels
-- [x] Evals: harness, blind judge, calibration, two-arm ablation, live prompt-injection scenario, report (docs/eval-report.md)
+- [x] Evals built: harness, blind judge, calibration, two-arm ablation, live prompt-injection scenario (3/3 passed), report generator, infrastructure-failure handling
+- [ ] Evals: no valid full run yet. Run 1 lost to connection errors, run 2 stopped after F01 to F03 because the laptop kept sleeping. Finish with the laptop plugged in and open: `python -m evals.run --resume evals/results/20261109-133705` (partial records are in docs/eval-results/). See docs/eval-report.md
+- [ ] One prompt-tuning iteration with before-and-after (planned for after the first valid baseline; candidates in docs/eval-report.md)
 - [x] Agent containerized; `docker compose up -d --build` starts everything; README with OWASP and NIST mapping and a POC-to-production section; demo script
 - [ ] Ankur replaces the placeholder `failures/catalog.yaml` with real failures
 - [ ] Ankur replaces the draft runbooks and catalog entries in `knowledge/` with experience-based ones (they are Claude Code drafts; any published ablation must say so)
